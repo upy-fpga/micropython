@@ -8,56 +8,39 @@ QSTR_DEFS = qstrdefsport.h
 # include py core make definitions
 include ../py/py.mk
 
-ifeq ($(CROSS), 1)
-CROSS_COMPILE = arm-none-eabi-
-endif
+CROSS_COMPILE ?= lm32-elf-
 
 INC += -I.
 INC += -I..
 INC += -I../lib/mp-readline
-INC += -I../stmhal
 INC += -I$(BUILD)
 
-ifeq ($(CROSS), 1)
-DFU = ../tools/dfu.py
-PYDFU = ../tools/pydfu.py
-CFLAGS_CORTEX_M4 = -mthumb -mtune=cortex-m4 -mabi=aapcs-linux -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -fsingle-precision-constant -Wdouble-promotion
-CFLAGS = $(INC) -Wall -Werror -ansi -std=gnu99 -nostdlib $(CFLAGS_CORTEX_M4) $(COPT)
-else
-CFLAGS = -m32 $(INC) -Wall -Werror -ansi -std=gnu99 $(COPT)
-endif
+CFLAGS = $(INC) -Wall -Werror -ansi -std=gnu99 -ggdb $(COPT)
 
 #Debugging/Optimization
-ifeq ($(DEBUG), 1)
-CFLAGS += -O0 -ggdb
-else
+ifneq ($(DEBUG), 1)
 CFLAGS += -Os -DNDEBUG
 endif
 
-ifeq ($(CROSS), 1)
-LDFLAGS = -nostdlib -T stm32f405.ld -Map=$@.map --cref
-else
-LD = gcc
-LDFLAGS = -m32 -Wl,-Map=$@.map,--cref
-endif
-LIBS =
+LDFLAGS = -T lm32.ld -Map=$@.map --cref
+LIBS = -L/opt/lm32/lm32-elf/lib -lc -L/opt/lm32/lib/gcc/lm32-elf/6.2.0 -lgcc
 
 SRC_C = \
 	main.c \
-	uart_core.c \
+	uart.c \
+	isr.c \
 	lib/utils/stdout_helpers.c \
 	lib/utils/pyexec.c \
 	lib/libc/string0.c \
 	lib/mp-readline/readline.c \
 	$(BUILD)/_frozen_mpy.c \
 
-OBJ = $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
+SRC_S = crt0-lm32.S
 
-ifeq ($(CROSS), 1)
-all: $(BUILD)/firmware.dfu
-else
+OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o)) \
+
+
 all: $(BUILD)/firmware.elf
-endif
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
@@ -65,19 +48,14 @@ $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
-	$(Q)$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(Q)$(LD) $(LIBS) $(LDFLAGS) -o $@ $^ $(LIBS)
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 	$(Q)$(OBJCOPY) -O binary -j .isr_vector -j .text -j .data $^ $(BUILD)/firmware.bin
 
-$(BUILD)/firmware.dfu: $(BUILD)/firmware.bin
-	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(DFU) -b 0x08000000:$(BUILD)/firmware.bin $@
-
-deploy: $(BUILD)/firmware.dfu
-	$(ECHO) "Writing $< to the board"
-	$(Q)$(PYTHON) $(PYDFU) -u $<
+deploy: $(BUILD)/firmware.bin
+	$(ECHO) "TODO: write to the board"
 
 # Run emulation build on a POSIX system with suitable terminal settings
 run:
