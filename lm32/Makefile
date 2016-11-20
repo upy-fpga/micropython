@@ -40,7 +40,7 @@ SRC_S = crt0-lm32.S
 OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o)) \
 
 
-all: $(BUILD)/firmware.elf
+all: $(BUILD)/firmware.bin
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
@@ -52,10 +52,7 @@ $(BUILD)/firmware.elf: $(OBJ)
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
-	$(Q)$(OBJCOPY) -O binary -j .isr_vector -j .text -j .data $^ $(BUILD)/firmware.bin
-
-deploy: $(BUILD)/firmware.bin
-	$(ECHO) "TODO: write to the board"
+	$(Q)$(OBJCOPY) -O binary $^ $(BUILD)/firmware.bin
 
 # Run emulation build on a POSIX system with suitable terminal settings
 run:
