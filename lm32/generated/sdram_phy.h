@@ -4,7 +4,7 @@
 #include <generated/csr.h>
 #include <hw/flags.h>
 
-#define DFII_NPHASES 1
+#define DFII_NPHASES 2
 
 static void cdelay(int i);
 
@@ -13,25 +13,32 @@ static void command_p0(int cmd)
     sdram_dfii_pi0_command_write(cmd);
     sdram_dfii_pi0_command_issue_write(1);
 }
+static void command_p1(int cmd)
+{
+    sdram_dfii_pi1_command_write(cmd);
+    sdram_dfii_pi1_command_issue_write(1);
+}
 
 
 #define sdram_dfii_pird_address_write(X) sdram_dfii_pi0_address_write(X)
-#define sdram_dfii_piwr_address_write(X) sdram_dfii_pi0_address_write(X)
+#define sdram_dfii_piwr_address_write(X) sdram_dfii_pi1_address_write(X)
 
 #define sdram_dfii_pird_baddress_write(X) sdram_dfii_pi0_baddress_write(X)
-#define sdram_dfii_piwr_baddress_write(X) sdram_dfii_pi0_baddress_write(X)
+#define sdram_dfii_piwr_baddress_write(X) sdram_dfii_pi1_baddress_write(X)
 
 #define command_prd(X) command_p0(X)
-#define command_pwr(X) command_p0(X)
+#define command_pwr(X) command_p1(X)
 
 #define DFII_PIX_DATA_SIZE CSR_SDRAM_DFII_PI0_WRDATA_SIZE
 
-const unsigned int sdram_dfii_pix_wrdata_addr[1] = {
-    CSR_SDRAM_DFII_PI0_WRDATA_ADDR
+const unsigned int sdram_dfii_pix_wrdata_addr[2] = {
+    CSR_SDRAM_DFII_PI0_WRDATA_ADDR,
+	CSR_SDRAM_DFII_PI1_WRDATA_ADDR
 };
 
-const unsigned int sdram_dfii_pix_rddata_addr[1] = {
-    CSR_SDRAM_DFII_PI0_RDDATA_ADDR
+const unsigned int sdram_dfii_pix_rddata_addr[2] = {
+    CSR_SDRAM_DFII_PI0_RDDATA_ADDR,
+	CSR_SDRAM_DFII_PI1_RDDATA_ADDR
 };
 
 static void init_sequence(void)
@@ -47,8 +54,13 @@ static void init_sequence(void)
 	sdram_dfii_pi0_baddress_write(0);
 	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
 
-	/* Load Mode Register / Reset DLL, CL=2, BL=1 */
-	sdram_dfii_pi0_address_write(0x120);
+	/* Load Extended Mode Register */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(2);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register / Reset DLL, CL=3, BL=4 */
+	sdram_dfii_pi0_address_write(0x132);
 	sdram_dfii_pi0_baddress_write(0);
 	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
 	cdelay(200);
@@ -70,8 +82,8 @@ static void init_sequence(void)
 	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_CS);
 	cdelay(4);
 
-	/* Load Mode Register / CL=2, BL=1 */
-	sdram_dfii_pi0_address_write(0x20);
+	/* Load Mode Register / CL=3, BL=4 */
+	sdram_dfii_pi0_address_write(0x32);
 	sdram_dfii_pi0_baddress_write(0);
 	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
 	cdelay(200);
