@@ -22,6 +22,9 @@ static char tx_buf[UART_RINGBUFFER_SIZE_TX];
 static unsigned int tx_produce;
 static volatile unsigned int tx_consume;
 
+extern int mp_interrupt_char;
+void mp_keyboard_interrupt(void);
+
 void uart_isr(void)
 {
 	unsigned int stat, rx_produce_next;
@@ -32,6 +35,11 @@ void uart_isr(void)
 		while(!uart_rxempty_read()) {
 			rx_produce_next = (rx_produce + 1) & UART_RINGBUFFER_MASK_RX;
 			if(rx_produce_next != rx_consume) {
+				char c = uart_rxtx_read();
+				if (c == mp_interrupt_char) {
+					mp_keyboard_interrupt();
+					return;
+				}
 				rx_buf[rx_produce] = uart_rxtx_read();
 				rx_produce = rx_produce_next;
 			}
