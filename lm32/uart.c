@@ -38,9 +38,10 @@ void uart_isr(void)
 				char c = uart_rxtx_read();
 				if (c == mp_interrupt_char) {
 					mp_keyboard_interrupt();
+					uart_ev_pending_write(UART_EV_RX);
 					return;
 				}
-				rx_buf[rx_produce] = uart_rxtx_read();
+				rx_buf[rx_produce] = c;
 				rx_produce = rx_produce_next;
 			}
 			uart_ev_pending_write(UART_EV_RX);
