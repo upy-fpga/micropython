@@ -48,19 +48,9 @@ int main(int argc, char **argv) {
     gc_init(heap, heap + sizeof(heap));
     #endif
     mp_init();
-    #if MICROPY_REPL_EVENT_DRIVEN
-    pyexec_event_repl_init();
-    for (;;) {
-        int c = mp_hal_stdin_rx_chr();
-        if (pyexec_event_repl_process_char(c)) {
-            break;
-        }
-    }
-    #else
+
     pyexec_friendly_repl();
-    #endif
-    //do_str("print('hello world!', list(x+1 for x in range(10)), end='eol\\n')", MP_PARSE_SINGLE_INPUT);
-    //do_str("for i in range(10):\r\n  print(i)", MP_PARSE_FILE_INPUT);
+
     mp_deinit();
     return 0;
 }
@@ -88,11 +78,14 @@ mp_obj_t mp_builtin_open(uint n_args, const mp_obj_t *args, mp_map_t *kwargs) {
 }
 MP_DEFINE_CONST_FUN_OBJ_KW(mp_builtin_open_obj, 1, mp_builtin_open);
 
-void nlr_jump_fail(void *val) {
-}
-
 void NORETURN __fatal_error(const char *msg) {
     while (1);
+}
+
+void nlr_jump_fail(void *val) {
+	printf("FATAL: uncaught exception %p\n", val);
+	mp_obj_print_exception(&mp_plat_print, (mp_obj_t)val);
+	__fatal_error("");
 }
 
 #ifndef NDEBUG
