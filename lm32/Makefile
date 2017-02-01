@@ -30,6 +30,7 @@ SRC_C = \
 	uart.c \
 	isr.c \
 	lib/utils/stdout_helpers.c \
+	lib/utils/interrupt_char.c \
 	lib/utils/pyexec.c \
 	lib/libc/string0.c \
 	lib/mp-readline/readline.c \

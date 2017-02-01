@@ -50,6 +50,8 @@
 #define MICROPY_LONGINT_IMPL        (MICROPY_LONGINT_IMPL_NONE)
 #define MICROPY_FLOAT_IMPL          (MICROPY_FLOAT_IMPL_NONE)
 
+#define MICROPY_KBD_EXCEPTION       (1)
+
 // type definitions for the specific machine
 
 #define BYTES_PER_WORD (4)
