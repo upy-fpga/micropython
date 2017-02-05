@@ -28,6 +28,7 @@ SRC_C = \
 	uart.c \
 	isr.c \
 	modmachine.c \
+	modlitex.c \
 	lib/utils/stdout_helpers.c \
 	lib/utils/interrupt_char.c \
 	lib/utils/pyexec.c \
