@@ -27,6 +27,7 @@ SRC_C = \
 	main.c \
 	uart.c \
 	isr.c \
+	modmachine.c \
 	lib/utils/stdout_helpers.c \
 	lib/utils/interrupt_char.c \
 	lib/utils/pyexec.c \
@@ -38,6 +39,9 @@ SRC_S = crt0-lm32.S
 OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 
 all: $(BUILD)/firmware.bin
+
+# List of sources for qstr extraction
+SRC_QSTR += $(SRC_C) $(SRC_LIB)
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
