@@ -2,6 +2,18 @@
 #define __GENERATED_CSR_H
 #include <hw/common.h>
 
+/* cas */
+#define CSR_CAS_BASE 0xe0006800
+#define CSR_CAS_LEDS_OUT_ADDR 0xe0006800
+#define CSR_CAS_LEDS_OUT_SIZE 1
+static inline unsigned char cas_leds_out_read(void) {
+	unsigned char r = MMPTR(0xe0006800);
+	return r;
+}
+static inline void cas_leds_out_write(unsigned char value) {
+	MMPTR(0xe0006800) = value;
+}
+
 /* info */
 #define CSR_INFO_BASE 0xe0006000
 #define CSR_INFO_DNA_ID_ADDR 0xe0006000
