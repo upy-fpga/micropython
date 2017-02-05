@@ -33,8 +33,7 @@ SRC_C = \
 	lib/utils/interrupt_char.c \
 	lib/utils/pyexec.c \
 	lib/libc/string0.c \
-	lib/mp-readline/readline.c \
-	$(BUILD)/_frozen_mpy.c \
+	lib/mp-readline/readline.c
 
 SRC_S = crt0-lm32.S
 
