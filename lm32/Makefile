@@ -1,7 +1,5 @@
 include ../py/mkenv.mk
 
-CROSS = 0
-
 # qstr definitions (must come before including py.mk)
 QSTR_DEFS = qstrdefsport.h
 
@@ -15,11 +13,11 @@ INC += -I..
 INC += -I../lib/mp-readline
 INC += -I$(BUILD)
 
-CFLAGS = $(INC) -Wall -Werror -ansi -std=gnu99 -ggdb $(COPT)
+CFLAGS = $(INC) -Wall -Werror -std=gnu11 -ggdb $(COPT)
+CFLAGS += -Og -Wdouble-promotion -Wall -Werror
 
-#Debugging/Optimization
 ifneq ($(DEBUG), 1)
-CFLAGS += -Os -DNDEBUG
+CFLAGS += -DNDEBUG
 endif
 
 LDFLAGS = -T lm32.ld -Map=$@.map --cref
@@ -37,8 +35,7 @@ SRC_C = \
 
 SRC_S = crt0-lm32.S
 
-OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o)) \
-
+OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 
 all: $(BUILD)/firmware.bin
 
@@ -48,7 +45,7 @@ $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
-	$(Q)$(LD) $(LIBS) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(Q)$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
