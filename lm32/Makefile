@@ -21,7 +21,7 @@ CFLAGS += -DNDEBUG
 endif
 
 LDFLAGS = -T lm32.ld -Map=$@.map --cref
-LIBS = -L/opt/lm32/lm32-elf/lib -lc -L/opt/lm32/lib/gcc/lm32-elf/6.2.0 -lgcc
+LIBS = -L/opt/lm32/lm32-elf/lib -lc -L/opt/lm32/lib/gcc/lm32-elf/6.3.0 -lgcc
 
 SRC_C = \
 	main.c \
