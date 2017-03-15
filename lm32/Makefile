@@ -20,8 +20,8 @@ ifneq ($(DEBUG), 1)
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS = -T lm32.ld -Map=$@.map --cref
-LIBS = -L/opt/lm32/lm32-elf/lib -lc -L/opt/lm32/lib/gcc/lm32-elf/6.3.0 -lgcc
+LDFLAGS = -T lm32.ld -Wl,-Map=$@.map -Wl,--cref
+LIBS = -Wl,-lc
 
 SRC_C = \
 	main.c \
@@ -51,7 +51,7 @@ $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
-	$(Q)$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
