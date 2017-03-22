@@ -13,6 +13,39 @@ static inline unsigned char cas_leds_out_read(void) {
 static inline void cas_leds_out_write(unsigned char value) {
 	MMPTR(0xe0006800) = value;
 }
+#define CSR_CAS_SWITCHES_IN_ADDR 0xe0006804
+#define CSR_CAS_SWITCHES_IN_SIZE 1
+static inline unsigned char cas_switches_in_read(void) {
+	unsigned char r = MMPTR(0xe0006804);
+	return r;
+}
+#define CSR_CAS_BUTTONS_EV_STATUS_ADDR 0xe0006808
+#define CSR_CAS_BUTTONS_EV_STATUS_SIZE 1
+static inline unsigned char cas_buttons_ev_status_read(void) {
+	unsigned char r = MMPTR(0xe0006808);
+	return r;
+}
+static inline void cas_buttons_ev_status_write(unsigned char value) {
+	MMPTR(0xe0006808) = value;
+}
+#define CSR_CAS_BUTTONS_EV_PENDING_ADDR 0xe000680c
+#define CSR_CAS_BUTTONS_EV_PENDING_SIZE 1
+static inline unsigned char cas_buttons_ev_pending_read(void) {
+	unsigned char r = MMPTR(0xe000680c);
+	return r;
+}
+static inline void cas_buttons_ev_pending_write(unsigned char value) {
+	MMPTR(0xe000680c) = value;
+}
+#define CSR_CAS_BUTTONS_EV_ENABLE_ADDR 0xe0006810
+#define CSR_CAS_BUTTONS_EV_ENABLE_SIZE 1
+static inline unsigned char cas_buttons_ev_enable_read(void) {
+	unsigned char r = MMPTR(0xe0006810);
+	return r;
+}
+static inline void cas_buttons_ev_enable_write(unsigned char value) {
+	MMPTR(0xe0006810) = value;
+}
 
 /* info */
 #define CSR_INFO_BASE 0xe0006000
@@ -457,6 +490,10 @@ static inline int spiflash_page_size_read(void) {
 static inline int spiflash_sector_size_read(void) {
 	return 65536;
 }
+#define ROM_DISABLE 1
+static inline int rom_disable_read(void) {
+	return 1;
+}
 #define L2_SIZE 8192
 static inline int l2_size_read(void) {
 	return 8192;
@@ -464,6 +501,10 @@ static inline int l2_size_read(void) {
 #define CONFIG_CLOCK_FREQUENCY 83333333
 static inline int config_clock_frequency_read(void) {
 	return 83333333;
+}
+#define CONFIG_CPU_RESET_ADDR 537395200
+static inline int config_cpu_reset_addr_read(void) {
+	return 537395200;
 }
 #define CONFIG_CPU_TYPE "LM32"
 static inline const char * config_cpu_type_read(void) {
