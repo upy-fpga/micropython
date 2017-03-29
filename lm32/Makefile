@@ -20,7 +20,7 @@ ifneq ($(DEBUG), 1)
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS = -T lm32.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -T lm32.ld -Wl,-Map=$@.map -Wl,--cref
 LIBS = -Wl,-lc
 
 SRC_C = \
