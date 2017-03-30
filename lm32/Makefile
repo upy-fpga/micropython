@@ -1,3 +1,12 @@
+ifeq ($(HDMI2USB_ENV),)
+ifeq ($(BUILDINC_DIRECTORY),)
+$(error Building outside gateware environment. Must set BUILDINC_DIRECTORY to the LiteX generated files)
+endif
+include $(BUILDINC_DIRECTORY)/generated/variables.mak
+else
+include generated/variables.mak
+endif
+
 include ../py/mkenv.mk
 
 # qstr definitions (must come before including py.mk)
@@ -6,21 +15,24 @@ QSTR_DEFS = qstrdefsport.h
 # include py core make definitions
 include ../py/py.mk
 
-CROSS_COMPILE ?= lm32-elf-
+CROSS_COMPILE ?= $(TRIPLE)-
 
 INC += -I.
 INC += -I..
 INC += -I../lib/mp-readline
 INC += -I$(BUILD)
+INC += -I$(BUILDINC_DIRECTORY)
 
-CFLAGS = $(INC) -Wall -Werror -std=gnu11 -ggdb $(COPT)
+CFLAGS += $(CPUFLAGS)
+CFLAGS += $(INC) -Wall -Werror -std=gnu11 -ggdb $(COPT)
 CFLAGS += -Og -Wdouble-promotion -Wall -Werror
 
 ifneq ($(DEBUG), 1)
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS += -T lm32.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -L$(BUILDINC_DIRECTORY)
 LIBS = -Wl,-lc
 
 SRC_C = \

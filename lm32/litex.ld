@@ -3,6 +3,7 @@ ENTRY(_start)
 __DYNAMIC = 0;
 
 INCLUDE generated/regions.ld
+INCLUDE generated/output_format.ld
 
 SECTIONS
 {
