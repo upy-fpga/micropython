@@ -1,9 +1,11 @@
-ENTRY(_start)
-
-__DYNAMIC = 0;
-
-INCLUDE generated/regions.ld
 INCLUDE generated/output_format.ld
+INCLUDE generated/regions.ld
+ENTRY(_start)
+/*
+INPUT(crti.o crtbegin.o crt0.o crtend.o crtn.o)
+GROUP(-lgloss -lnosys -lc -lgcc)
+*/
+__DYNAMIC = 0;
 
 SECTIONS
 {
