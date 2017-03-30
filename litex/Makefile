@@ -1,11 +1,9 @@
 ifeq ($(HDMI2USB_ENV),)
 ifeq ($(BUILDINC_DIRECTORY),)
-$(error Building outside gateware environment. Must set BUILDINC_DIRECTORY to the LiteX generated files)
+$(error Building outside gateware environment. Must set BUILDINC_DIRECTORY to the LiteX generated files (build/software/include/generated/))
+endif
 endif
 include $(BUILDINC_DIRECTORY)/generated/variables.mak
-else
-include generated/variables.mak
-endif
 
 include ../py/mkenv.mk
 
@@ -48,7 +46,9 @@ SRC_C = \
 	lib/libc/string0.c \
 	lib/mp-readline/readline.c
 
-SRC_S = crt0-lm32.S
+# FIXME: Should use crt0 from newlib? However it seems to cause memory access
+# at 0x0
+SRC_S = crt0-$(CPU).S
 
 OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 
@@ -56,6 +56,9 @@ all: $(BUILD)/firmware.bin
 
 # List of sources for qstr extraction
 SRC_QSTR += $(SRC_C) $(SRC_LIB)
+
+$(BUILD)/crt0-$(CPU).S: $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
+	cp $< $@
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
