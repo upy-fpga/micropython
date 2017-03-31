@@ -15,6 +15,7 @@ To allow MicroPython to find these files, you must do one of the
 following;
  * Set BUILDINC_DIRECTORY.
  * Copy the files into a local generated directory.
+ * Run ./get-gateware.sh script (setting PLATFORM/TARGET value).
 
 endef
 $(error $(ERROR_MSG))
