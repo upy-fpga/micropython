@@ -6,6 +6,15 @@
 
 #include "generated/csr.h"
 
+#ifndef CSR_CAS_BASE
+static inline unsigned char cas_leds_out_read(void) {
+	return 0;
+}
+
+static inline void cas_leds_out_write(unsigned char value) {
+}
+#endif
+
 const mp_obj_type_t litex_led_type;
 
 typedef struct _litex_led_obj_t {
