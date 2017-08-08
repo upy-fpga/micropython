@@ -40,6 +40,7 @@ SRC_C = \
 	modmachine.c \
 	modlitex.c \
 	litex_leds.c \
+	litex_switches.c \
 	lib/utils/stdout_helpers.c \
 	lib/utils/interrupt_char.c \
 	lib/utils/pyexec.c \
