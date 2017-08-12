@@ -55,7 +55,7 @@ void litex_led_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t 
 
 STATIC mp_obj_t litex_led_read(mp_obj_t self_in) {
 	litex_led_obj_t *led = self_in;
-	bool state = cas_leds_out_read() & (led->num - 1);
+	bool state = cas_leds_out_read() & (1 << (led->num - 1));
 
 	return mp_obj_new_bool(state);
 }
