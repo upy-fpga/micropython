@@ -1,8 +1,25 @@
-ifeq ($(HDMI2USB_ENV),)
-ifeq ($(BUILDINC_DIRECTORY),)
-$(error Building outside gateware environment. Must set BUILDINC_DIRECTORY to the LiteX generated files (build/software/include/generated/))
-endif
-endif
+BUILDINC_DIRECTORY ?= .
+ifeq ($(wildcard $(BUILDINC_DIRECTORY)/generated/variables.mak),)
+define ERROR_MSG
+
+$(BUILDINC_DIRECTORY)/generated/variables.mak not found.
+
+MicroPython for LiteX requires these generated files to build. It
+is important that the files match the gateware you are using and
+are specific to each board / platform.
+
+The LiteX generated files are found in build output directory
+under "software/include/generated".
+
+To allow MicroPython to find these files, you must do one of the
+following;
+ * Set BUILDINC_DIRECTORY.
+ * Copy the files into a local generated directory.
+ * Run ./get-gateware.sh script (setting PLATFORM/TARGET value).
+
+endef
+$(error $(ERROR_MSG))
+endif # no generated/variables.mak
 include $(BUILDINC_DIRECTORY)/generated/variables.mak
 
 include ../py/mkenv.mk
