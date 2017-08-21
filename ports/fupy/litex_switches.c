@@ -7,7 +7,8 @@
 #include "generated/csr.h"
 
 #ifndef CSR_CAS_BASE
-static inline void cas_switches_in_read(void) {
+static inline unsigned char cas_switches_in_read(void) {
+    return 0;
 }
 #endif
 
