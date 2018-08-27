@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -44,6 +44,7 @@ static const void *const entry_table[256] = {
     [MP_BC_LOAD_GLOBAL] = &&entry_MP_BC_LOAD_GLOBAL,
     [MP_BC_LOAD_ATTR] = &&entry_MP_BC_LOAD_ATTR,
     [MP_BC_LOAD_METHOD] = &&entry_MP_BC_LOAD_METHOD,
+    [MP_BC_LOAD_SUPER_METHOD] = &&entry_MP_BC_LOAD_SUPER_METHOD,
     [MP_BC_LOAD_BUILD_CLASS] = &&entry_MP_BC_LOAD_BUILD_CLASS,
     [MP_BC_LOAD_SUBSCR] = &&entry_MP_BC_LOAD_SUBSCR,
     [MP_BC_STORE_FAST_N] = &&entry_MP_BC_STORE_FAST_N,
@@ -108,8 +109,8 @@ static const void *const entry_table[256] = {
     [MP_BC_LOAD_CONST_SMALL_INT_MULTI ... MP_BC_LOAD_CONST_SMALL_INT_MULTI + 63] = &&entry_MP_BC_LOAD_CONST_SMALL_INT_MULTI,
     [MP_BC_LOAD_FAST_MULTI ... MP_BC_LOAD_FAST_MULTI + 15] = &&entry_MP_BC_LOAD_FAST_MULTI,
     [MP_BC_STORE_FAST_MULTI ... MP_BC_STORE_FAST_MULTI + 15] = &&entry_MP_BC_STORE_FAST_MULTI,
-    [MP_BC_UNARY_OP_MULTI ... MP_BC_UNARY_OP_MULTI + 6] = &&entry_MP_BC_UNARY_OP_MULTI,
-    [MP_BC_BINARY_OP_MULTI ... MP_BC_BINARY_OP_MULTI + 35] = &&entry_MP_BC_BINARY_OP_MULTI,
+    [MP_BC_UNARY_OP_MULTI ... MP_BC_UNARY_OP_MULTI + MP_UNARY_OP_NUM_BYTECODE - 1] = &&entry_MP_BC_UNARY_OP_MULTI,
+    [MP_BC_BINARY_OP_MULTI ... MP_BC_BINARY_OP_MULTI + MP_BINARY_OP_NUM_BYTECODE - 1] = &&entry_MP_BC_BINARY_OP_MULTI,
 };
 
 #if __clang__

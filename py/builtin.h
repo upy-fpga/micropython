@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -23,8 +23,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef __MICROPY_INCLUDED_PY_BUILTIN_H__
-#define __MICROPY_INCLUDED_PY_BUILTIN_H__
+#ifndef MICROPY_INCLUDED_PY_BUILTIN_H
+#define MICROPY_INCLUDED_PY_BUILTIN_H
 
 #include "py/obj.h"
 
@@ -106,6 +106,7 @@ extern const mp_obj_module_t mp_module_ujson;
 extern const mp_obj_module_t mp_module_ure;
 extern const mp_obj_module_t mp_module_uheapq;
 extern const mp_obj_module_t mp_module_uhashlib;
+extern const mp_obj_module_t mp_module_ucryptolib;
 extern const mp_obj_module_t mp_module_ubinascii;
 extern const mp_obj_module_t mp_module_urandom;
 extern const mp_obj_module_t mp_module_uselect;
@@ -118,6 +119,6 @@ extern const mp_obj_module_t mp_module_webrepl;
 extern const mp_obj_module_t mp_module_framebuf;
 extern const mp_obj_module_t mp_module_btree;
 
-extern const char *MICROPY_PY_BUILTINS_HELP_TEXT;
+extern const char MICROPY_PY_BUILTINS_HELP_TEXT[];
 
-#endif // __MICROPY_INCLUDED_PY_BUILTIN_H__
+#endif // MICROPY_INCLUDED_PY_BUILTIN_H

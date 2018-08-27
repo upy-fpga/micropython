@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -27,8 +27,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "py/mpstate.h"
-#include "py/nlr.h"
 #include "py/objmodule.h"
 #include "py/runtime.h"
 #include "py/builtin.h"
@@ -124,12 +122,6 @@ mp_obj_t mp_obj_new_module(qstr module_name) {
     return MP_OBJ_FROM_PTR(o);
 }
 
-mp_obj_dict_t *mp_obj_module_get_globals(mp_obj_t self_in) {
-    assert(MP_OBJ_IS_TYPE(self_in, &mp_type_module));
-    mp_obj_module_t *self = MP_OBJ_TO_PTR(self_in);
-    return self->globals;
-}
-
 /******************************************************************************/
 // Global module table and related functions
 
@@ -195,6 +187,9 @@ STATIC const mp_rom_map_elem_t mp_builtin_module_table[] = {
 #if MICROPY_PY_UHASHLIB
     { MP_ROM_QSTR(MP_QSTR_uhashlib), MP_ROM_PTR(&mp_module_uhashlib) },
 #endif
+#if MICROPY_PY_UCRYPTOLIB
+    { MP_ROM_QSTR(MP_QSTR_ucryptolib), MP_ROM_PTR(&mp_module_ucryptolib) },
+#endif
 #if MICROPY_PY_UBINASCII
     { MP_ROM_QSTR(MP_QSTR_ubinascii), MP_ROM_PTR(&mp_module_ubinascii) },
 #endif
@@ -249,17 +244,7 @@ mp_obj_t mp_module_get(qstr module_name) {
         if (el == NULL) {
             return MP_OBJ_NULL;
         }
-
-        if (MICROPY_MODULE_BUILTIN_INIT) {
-            // look for __init__ and call it if it exists
-            mp_obj_t dest[2];
-            mp_load_method_maybe(el->value, MP_QSTR___init__, dest);
-            if (dest[0] != MP_OBJ_NULL) {
-                mp_call_method_n_kw(0, 0, dest);
-                // register module so __init__ is not called again
-                mp_module_register(module_name, el->value);
-            }
-        }
+        mp_module_call_init(module_name, el->value);
     }
 
     // module found, return it
@@ -270,3 +255,19 @@ void mp_module_register(qstr qst, mp_obj_t module) {
     mp_map_t *mp_loaded_modules_map = &MP_STATE_VM(mp_loaded_modules_dict).map;
     mp_map_lookup(mp_loaded_modules_map, MP_OBJ_NEW_QSTR(qst), MP_MAP_LOOKUP_ADD_IF_NOT_FOUND)->value = module;
 }
+
+#if MICROPY_MODULE_BUILTIN_INIT
+void mp_module_call_init(qstr module_name, mp_obj_t module_obj) {
+    // Look for __init__ and call it if it exists
+    mp_obj_t dest[2];
+    mp_load_method_maybe(module_obj, MP_QSTR___init__, dest);
+    if (dest[0] != MP_OBJ_NULL) {
+        mp_call_method_n_kw(0, 0, dest);
+        // Register module so __init__ is not called again.
+        // If a module can be referenced by more than one name (eg due to weak links)
+        // then __init__ will still be called for each distinct import, and it's then
+        // up to the particular module to make sure it's __init__ code only runs once.
+        mp_module_register(module_name, module_obj);
+    }
+}
+#endif

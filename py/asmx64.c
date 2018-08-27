@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -73,8 +73,10 @@
 #define OPCODE_CMP_R64_WITH_RM64 (0x39) /* /r */
 //#define OPCODE_CMP_RM32_WITH_R32 (0x3b)
 #define OPCODE_TEST_R8_WITH_RM8  (0x84) /* /r */
+#define OPCODE_TEST_R64_WITH_RM64 (0x85) /* /r */
 #define OPCODE_JMP_REL8          (0xeb)
 #define OPCODE_JMP_REL32         (0xe9)
+#define OPCODE_JMP_RM64          (0xff) /* /4 */
 #define OPCODE_JCC_REL8          (0x70) /* | jcc type */
 #define OPCODE_JCC_REL32_A       (0x0f)
 #define OPCODE_JCC_REL32_B       (0x80) /* | jcc type */
@@ -344,8 +346,9 @@ STATIC void asm_x64_mov_i32_to_r64(asm_x64_t *as, int src_i32, int dest_r64) {
 void asm_x64_mov_i64_to_r64(asm_x64_t *as, int64_t src_i64, int dest_r64) {
     // cpu defaults to i32 to r64
     // to mov i64 to r64 need to use REX prefix
-    assert(dest_r64 < 8);
-    asm_x64_write_byte_2(as, REX_PREFIX | REX_W, OPCODE_MOV_I64_TO_R64 | dest_r64);
+    asm_x64_write_byte_2(as,
+        REX_PREFIX | REX_W | (dest_r64 < 8 ? 0 : REX_B),
+        OPCODE_MOV_I64_TO_R64 | (dest_r64 & 7));
     asm_x64_write_word64(as, src_i64);
 }
 
@@ -470,9 +473,18 @@ void asm_x64_test_r8_with_r8(asm_x64_t *as, int src_r64_a, int src_r64_b) {
     asm_x64_write_byte_2(as, OPCODE_TEST_R8_WITH_RM8, MODRM_R64(src_r64_a) | MODRM_RM_REG | MODRM_RM_R64(src_r64_b));
 }
 
+void asm_x64_test_r64_with_r64(asm_x64_t *as, int src_r64_a, int src_r64_b) {
+    asm_x64_generic_r64_r64(as, src_r64_b, src_r64_a, OPCODE_TEST_R64_WITH_RM64);
+}
+
 void asm_x64_setcc_r8(asm_x64_t *as, int jcc_type, int dest_r8) {
     assert(dest_r8 < 8);
     asm_x64_write_byte_3(as, OPCODE_SETCC_RM8_A, OPCODE_SETCC_RM8_B | jcc_type, MODRM_R64(0) | MODRM_RM_REG | MODRM_RM_R64(dest_r8));
+}
+
+void asm_x64_jmp_reg(asm_x64_t *as, int src_r64) {
+    assert(src_r64 < 8);
+    asm_x64_write_byte_2(as, OPCODE_JMP_RM64, MODRM_R64(4) | MODRM_RM_REG | MODRM_RM_R64(src_r64));
 }
 
 STATIC mp_uint_t get_label_dest(asm_x64_t *as, mp_uint_t label) {
@@ -525,11 +537,9 @@ void asm_x64_jcc_label(asm_x64_t *as, int jcc_type, mp_uint_t label) {
 }
 
 void asm_x64_entry(asm_x64_t *as, int num_locals) {
+    assert(num_locals >= 0);
     asm_x64_push_r64(as, ASM_X64_REG_RBP);
     asm_x64_mov_r64_r64(as, ASM_X64_REG_RBP, ASM_X64_REG_RSP);
-    if (num_locals < 0) {
-        num_locals = 0;
-    }
     num_locals |= 1; // make it odd so stack is aligned on 16 byte boundary
     asm_x64_sub_r64_i32(as, ASM_X64_REG_RSP, num_locals * WORD_SIZE);
     asm_x64_push_r64(as, ASM_X64_REG_RBX);
@@ -576,6 +586,14 @@ void asm_x64_mov_local_addr_to_r64(asm_x64_t *as, int local_num, int dest_r64) {
     } else {
         asm_x64_lea_disp_to_r64(as, ASM_X64_REG_RBP, offset, dest_r64);
     }
+}
+
+void asm_x64_mov_reg_pcrel(asm_x64_t *as, int dest_r64, mp_uint_t label) {
+    assert(dest_r64 < 8);
+    mp_uint_t dest = get_label_dest(as, label);
+    mp_int_t rel = dest - (as->base.code_offset + 7);
+    asm_x64_write_byte_3(as, REX_PREFIX | REX_W, OPCODE_LEA_MEM_TO_R64, MODRM_R64(dest_r64) | MODRM_RM_R64(5));
+    asm_x64_write_word32(as, rel);
 }
 
 /*

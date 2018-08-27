@@ -13,11 +13,11 @@ damage.
 
 .. _machine_callbacks:
 
-A note of callbacks used by functions and class methods of ``machine`` module:
+A note of callbacks used by functions and class methods of :mod:`machine` module:
 all these callbacks should be considered as executing in an interrupt context.
 This is true for both physical devices with IDs >= 0 and "virtual" devices
 with negative IDs like -1 (these "virtual" devices are still thin shims on
-top of real hardware and real hardware intrerrupts). See :ref:`isr_rules`.
+top of real hardware and real hardware interrupts). See :ref:`isr_rules`.
 
 Reset related functions
 -----------------------
@@ -38,30 +38,21 @@ Interrupt related functions
 
    Disable interrupt requests.
    Returns the previous IRQ state which should be considered an opaque value.
-   This return value should be passed to the ``enable_irq`` function to restore
-   interrupts to their original state, before ``disable_irq`` was called.
+   This return value should be passed to the `enable_irq()` function to restore
+   interrupts to their original state, before `disable_irq()` was called.
 
 .. function:: enable_irq(state)
 
    Re-enable interrupt requests.
-   The ``state`` parameter should be the value that was returned from the most
-   recent call to the ``disable_irq`` function.
+   The *state* parameter should be the value that was returned from the most
+   recent call to the `disable_irq()` function.
 
 Power related functions
 -----------------------
 
 .. function:: freq()
 
-    .. only:: not port_wipy
-
-        Returns CPU frequency in hertz.
-
-    .. only:: port_wipy
-
-        Returns a tuple of clock frequencies: ``(sysclk,)``
-        These correspond to:
-
-        - sysclk: frequency of the CPU
+    Returns CPU frequency in hertz.
 
 .. function:: idle()
 
@@ -80,30 +71,17 @@ Power related functions
 
    Stops the CPU and all peripherals (including networking interfaces, if any). Execution
    is resumed from the main script, just as with a reset. The reset cause can be checked
-   to know that we are coming from ``machine.DEEPSLEEP``. For wake up to actually happen,
-   wake sources should be configured first, like ``Pin`` change or ``RTC`` timeout.
+   to know that we are coming from `machine.DEEPSLEEP`. For wake up to actually happen,
+   wake sources should be configured first, like `Pin` change or `RTC` timeout.
 
-.. only:: port_wipy
+.. function:: wake_reason()
 
-    .. function:: wake_reason()
+   Get the wake reason. See :ref:`constants <machine_constants>` for the possible return values.
 
-        Get the wake reason. See :ref:`constants <machine_constants>` for the possible return values.
+   Availability: ESP32, WiPy.
 
 Miscellaneous functions
 -----------------------
-
-.. only:: port_wipy
-
-    .. function:: main(filename)
-
-        Set the filename of the main script to run after boot.py is finished.  If
-        this function is not called then the default file main.py will be executed.
-
-        It only makes sense to call this function from within boot.py.
-
-    .. function:: rng()
-
-        Return a 24-bit software generated random number.
 
 .. function:: unique_id()
 
@@ -114,19 +92,25 @@ Miscellaneous functions
 
 .. function:: time_pulse_us(pin, pulse_level, timeout_us=1000000)
 
-   Time a pulse on the given `pin`, and return the duration of the pulse in
-   microseconds.  The `pulse_level` argument should be 0 to time a low pulse
+   Time a pulse on the given *pin*, and return the duration of the pulse in
+   microseconds.  The *pulse_level* argument should be 0 to time a low pulse
    or 1 to time a high pulse.
 
-   If the current input value of the pin is different to `pulse_level`,
-   the function first (*) waits until the pin input becomes equal to `pulse_level`,
-   then (**) times the duration that the pin is equal to `pulse_level`.
-   If the pin is already equal to `pulse_level` then timing starts straight away.
+   If the current input value of the pin is different to *pulse_level*,
+   the function first (*) waits until the pin input becomes equal to *pulse_level*,
+   then (**) times the duration that the pin is equal to *pulse_level*.
+   If the pin is already equal to *pulse_level* then timing starts straight away.
 
    The function will return -2 if there was timeout waiting for condition marked
    (*) above, and -1 if there was timeout during the main measurement, marked (**)
-   above. The timeout is the same for both cases and given by `timeout_us` (which
+   above. The timeout is the same for both cases and given by *timeout_us* (which
    is in microseconds).
+
+.. function:: rng()
+
+   Return a 24-bit software generated random number.
+
+   Availability: WiPy.
 
 .. _machine_constants:
 
@@ -156,30 +140,16 @@ Constants
 Classes
 -------
 
-.. only:: not port_wipy
-
- .. toctree::
+.. toctree::
    :maxdepth: 1
 
-   machine.I2C.rst
    machine.Pin.rst
-   machine.RTC.rst
-   machine.SPI.rst
-   machine.Timer.rst
-   machine.UART.rst
-   machine.WDT.rst
-
-.. only:: port_wipy
-
- .. toctree::
-   :maxdepth: 1
-
+   machine.Signal.rst
    machine.ADC.rst
-   machine.I2C.rst
-   machine.Pin.rst
-   machine.RTC.rst
-   machine.SD.rst
-   machine.SPI.rst
-   machine.Timer.rst
    machine.UART.rst
+   machine.SPI.rst
+   machine.I2C.rst
+   machine.RTC.rst
+   machine.Timer.rst
    machine.WDT.rst
+   machine.SD.rst

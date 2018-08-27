@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -23,8 +23,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef __MICROPY_INCLUDED_PY_ASMX64_H__
-#define __MICROPY_INCLUDED_PY_ASMX64_H__
+#ifndef MICROPY_INCLUDED_PY_ASMX64_H
+#define MICROPY_INCLUDED_PY_ASMX64_H
 
 #include "py/mpconfig.h"
 #include "py/misc.h"
@@ -104,7 +104,9 @@ void asm_x64_sub_r64_r64(asm_x64_t* as, int dest_r64, int src_r64);
 void asm_x64_mul_r64_r64(asm_x64_t* as, int dest_r64, int src_r64);
 void asm_x64_cmp_r64_with_r64(asm_x64_t* as, int src_r64_a, int src_r64_b);
 void asm_x64_test_r8_with_r8(asm_x64_t* as, int src_r64_a, int src_r64_b);
+void asm_x64_test_r64_with_r64(asm_x64_t *as, int src_r64_a, int src_r64_b);
 void asm_x64_setcc_r8(asm_x64_t* as, int jcc_type, int dest_r8);
+void asm_x64_jmp_reg(asm_x64_t *as, int src_r64);
 void asm_x64_jmp_label(asm_x64_t* as, mp_uint_t label);
 void asm_x64_jcc_label(asm_x64_t* as, int jcc_type, mp_uint_t label);
 void asm_x64_entry(asm_x64_t* as, int num_locals);
@@ -112,6 +114,7 @@ void asm_x64_exit(asm_x64_t* as);
 void asm_x64_mov_local_to_r64(asm_x64_t* as, int src_local_num, int dest_r64);
 void asm_x64_mov_r64_to_local(asm_x64_t* as, int src_r64, int dest_local_num);
 void asm_x64_mov_local_addr_to_r64(asm_x64_t* as, int local_num, int dest_r64);
+void asm_x64_mov_reg_pcrel(asm_x64_t *as, int dest_r64, mp_uint_t label);
 void asm_x64_call_ind(asm_x64_t* as, void* ptr, int temp_r32);
 
 #if GENERIC_ASM_API
@@ -145,14 +148,22 @@ void asm_x64_call_ind(asm_x64_t* as, void* ptr, int temp_r32);
 #define ASM_EXIT            asm_x64_exit
 
 #define ASM_JUMP            asm_x64_jmp_label
-#define ASM_JUMP_IF_REG_ZERO(as, reg, label) \
+#define ASM_JUMP_IF_REG_ZERO(as, reg, label, bool_test) \
     do { \
-        asm_x64_test_r8_with_r8(as, reg, reg); \
+        if (bool_test) { \
+            asm_x64_test_r8_with_r8((as), (reg), (reg)); \
+        } else { \
+            asm_x64_test_r64_with_r64((as), (reg), (reg)); \
+        } \
         asm_x64_jcc_label(as, ASM_X64_CC_JZ, label); \
     } while (0)
-#define ASM_JUMP_IF_REG_NONZERO(as, reg, label) \
+#define ASM_JUMP_IF_REG_NONZERO(as, reg, label, bool_test) \
     do { \
-        asm_x64_test_r8_with_r8(as, reg, reg); \
+        if (bool_test) { \
+            asm_x64_test_r8_with_r8((as), (reg), (reg)); \
+        } else { \
+            asm_x64_test_r64_with_r64((as), (reg), (reg)); \
+        } \
         asm_x64_jcc_label(as, ASM_X64_CC_JNZ, label); \
     } while (0)
 #define ASM_JUMP_IF_REG_EQ(as, reg1, reg2, label) \
@@ -160,19 +171,16 @@ void asm_x64_call_ind(asm_x64_t* as, void* ptr, int temp_r32);
         asm_x64_cmp_r64_with_r64(as, reg1, reg2); \
         asm_x64_jcc_label(as, ASM_X64_CC_JE, label); \
     } while (0)
+#define ASM_JUMP_REG(as, reg) asm_x64_jmp_reg((as), (reg))
 #define ASM_CALL_IND(as, ptr, idx) asm_x64_call_ind(as, ptr, ASM_X64_REG_RAX)
 
-#define ASM_MOV_REG_TO_LOCAL        asm_x64_mov_r64_to_local
-#define ASM_MOV_IMM_TO_REG          asm_x64_mov_i64_to_r64_optimised
-#define ASM_MOV_ALIGNED_IMM_TO_REG  asm_x64_mov_i64_to_r64_aligned
-#define ASM_MOV_IMM_TO_LOCAL_USING(as, imm, local_num, reg_temp) \
-    do { \
-        asm_x64_mov_i64_to_r64_optimised(as, (imm), (reg_temp)); \
-        asm_x64_mov_r64_to_local(as, (reg_temp), (local_num)); \
-    } while (false)
-#define ASM_MOV_LOCAL_TO_REG        asm_x64_mov_local_to_r64
+#define ASM_MOV_LOCAL_REG(as, local_num, reg_src) asm_x64_mov_r64_to_local((as), (reg_src), (local_num))
+#define ASM_MOV_REG_IMM(as, reg_dest, imm) asm_x64_mov_i64_to_r64_optimised((as), (imm), (reg_dest))
+#define ASM_MOV_REG_ALIGNED_IMM(as, reg_dest, imm) asm_x64_mov_i64_to_r64_aligned((as), (imm), (reg_dest))
+#define ASM_MOV_REG_LOCAL(as, reg_dest, local_num) asm_x64_mov_local_to_r64((as), (local_num), (reg_dest))
 #define ASM_MOV_REG_REG(as, reg_dest, reg_src) asm_x64_mov_r64_r64((as), (reg_dest), (reg_src))
-#define ASM_MOV_LOCAL_ADDR_TO_REG   asm_x64_mov_local_addr_to_r64
+#define ASM_MOV_REG_LOCAL_ADDR(as, reg_dest, local_num) asm_x64_mov_local_addr_to_r64((as), (local_num), (reg_dest))
+#define ASM_MOV_REG_PCREL(as, reg_dest, label) asm_x64_mov_reg_pcrel((as), (reg_dest), (label))
 
 #define ASM_LSL_REG(as, reg) asm_x64_shl_r64_cl((as), (reg))
 #define ASM_ASR_REG(as, reg) asm_x64_sar_r64_cl((as), (reg))
@@ -197,4 +205,4 @@ void asm_x64_call_ind(asm_x64_t* as, void* ptr, int temp_r32);
 
 #endif // GENERIC_ASM_API
 
-#endif // __MICROPY_INCLUDED_PY_ASMX64_H__
+#endif // MICROPY_INCLUDED_PY_ASMX64_H

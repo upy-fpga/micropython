@@ -5,9 +5,8 @@ import sys
 try:
     import uio
 except ImportError:
-    import sys
     print("SKIP")
-    sys.exit()
+    raise SystemExit
 
 # preallocate exception instance with some room for a traceback
 global_exc = StopIteration()
@@ -17,17 +16,17 @@ except:
     pass
 
 def test():
+    micropython.heap_lock()
     global global_exc
     global_exc.__traceback__ = None
     try:
         raise global_exc
     except StopIteration:
         print('StopIteration')
+    micropython.heap_unlock()
 
 # call test() with heap allocation disabled
-micropython.heap_lock()
 test()
-micropython.heap_unlock()
 
 # print the exception that was raised
 buf = uio.StringIO()

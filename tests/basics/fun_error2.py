@@ -3,17 +3,10 @@ try:
     enumerate
 except:
     print("SKIP")
-    import sys
-    sys.exit()
-
-def test_exc(code, exc):
-    try:
-        exec(code)
-        print("no exception")
-    except exc:
-        print("right exception")
-    except:
-        print("wrong exception")
+    raise SystemExit
 
 # function with keyword args not given a specific keyword arg
-test_exc("enumerate()", TypeError)
+try:
+    enumerate()
+except TypeError:
+    print('TypeError')

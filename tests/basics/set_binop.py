@@ -47,7 +47,25 @@ s1 = s2 = set('abc')
 s1 -= set('ad')
 print(s1 is s2, len(s1))
 
+# RHS must be a set
+try:
+    print(set('12') >= '1')
+except TypeError:
+    print('TypeError')
+
+# RHS must be a set
+try:
+    print(set('12') <= '123')
+except TypeError:
+    print('TypeError')
+
 # unsupported operator
+try:
+    set('abc') * set('abc')
+except TypeError:
+    print('TypeError')
+
+# unsupported operator with RHS not a set
 try:
     set('abc') * 2
 except TypeError:

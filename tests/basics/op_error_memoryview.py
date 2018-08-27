@@ -2,18 +2,12 @@
 try:
     memoryview
 except:
-    import sys
     print("SKIP")
-    sys.exit()
-
-def test_exc(code, exc):
-    try:
-        exec(code)
-        print("no exception")
-    except exc:
-        print("right exception")
-    except:
-        print("wrong exception")
+    raise SystemExit
 
 # unsupported binary operators
-test_exc("m = memoryview(bytearray())\nm += bytearray()", TypeError)
+try:
+    m = memoryview(bytearray())
+    m += bytearray()
+except TypeError:
+    print('TypeError')
