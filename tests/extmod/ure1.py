@@ -4,9 +4,8 @@ except ImportError:
     try:
         import re
     except ImportError:
-        import sys
         print("SKIP")
-        sys.exit()
+        raise SystemExit
 
 r = re.compile(".+")
 m = r.match("abc")
@@ -49,7 +48,12 @@ m = r.match("d")
 print(m.group(0))
 m = r.match("A")
 print(m.group(0))
+print("===")
 
+# '-' character within character class block
+print(re.match("[-a]+", "-a]d").group(0))
+print(re.match("[a-]+", "-a]d").group(0))
+print("===")
 
 r = re.compile("o+")
 m = r.search("foobar")
@@ -81,3 +85,6 @@ try:
     re.compile("*")
 except:
     print("Caught invalid regex")
+
+# bytes objects
+m = re.match(rb'a+?', b'ab');  print(m.group(0))

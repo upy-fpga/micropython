@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -28,7 +28,6 @@
 #include <string.h>
 #include <assert.h>
 
-#include "py/mpstate.h"
 #include "py/reader.h"
 #include "py/lexer.h"
 #include "py/runtime.h"
@@ -137,29 +136,23 @@ STATIC void next_char(mp_lexer_t *lex) {
     lex->chr1 = lex->chr2;
     lex->chr2 = lex->reader.readbyte(lex->reader.data);
 
-    if (lex->chr0 == '\r') {
+    if (lex->chr1 == '\r') {
         // CR is a new line, converted to LF
-        lex->chr0 = '\n';
-        if (lex->chr1 == '\n') {
-            // CR LF is a single new line
-            lex->chr1 = lex->chr2;
+        lex->chr1 = '\n';
+        if (lex->chr2 == '\n') {
+            // CR LF is a single new line, throw out the extra LF
             lex->chr2 = lex->reader.readbyte(lex->reader.data);
         }
     }
 
-    if (lex->chr2 == MP_LEXER_EOF) {
-        // EOF, check if we need to insert a newline at end of file
-        if (lex->chr1 != MP_LEXER_EOF && lex->chr1 != '\n') {
-            // if lex->chr1 == '\r' then this makes a CR LF which will be converted to LF above
-            // otherwise it just inserts a LF
-            lex->chr2 = '\n';
-        }
+    // check if we need to insert a newline at end of file
+    if (lex->chr2 == MP_LEXER_EOF && lex->chr1 != MP_LEXER_EOF && lex->chr1 != '\n') {
+        lex->chr2 = '\n';
     }
 }
 
 STATIC void indent_push(mp_lexer_t *lex, size_t indent) {
     if (lex->num_indent_level >= lex->alloc_indent_level) {
-        // TODO use m_renew_maybe and somehow indicate an error if it fails... probably by using MP_TOKEN_MEMORY_ERROR
         lex->indent_level = m_renew(uint16_t, lex->indent_level, lex->alloc_indent_level, lex->alloc_indent_level + MICROPY_ALLOC_LEXEL_INDENT_INC);
         lex->alloc_indent_level += MICROPY_ALLOC_LEXEL_INDENT_INC;
     }
@@ -177,7 +170,6 @@ STATIC void indent_pop(mp_lexer_t *lex) {
 // some tricky operator encoding:
 //     <op>  = begin with <op>, if this opchar matches then begin here
 //     e<op> = end with <op>, if this opchar matches then end
-//     E<op> = mandatory end with <op>, this opchar must match, then end
 //     c<op> = continue with <op>, if this opchar matches then continue matching
 // this means if the start of two ops are the same then they are equal til the last char
 
@@ -194,7 +186,7 @@ STATIC const char *const tok_enc =
     "%e="         // % %=
     "^e="         // ^ ^=
     "=e="         // = ==
-    "!E=";        // !=
+    "!.";         // start of special cases: != . ...
 
 // TODO static assert that number of tokens is less than 256 so we can safely make this table with byte sized entries
 STATIC const uint8_t tok_enc_kind[] = {
@@ -214,7 +206,6 @@ STATIC const uint8_t tok_enc_kind[] = {
     MP_TOKEN_OP_PERCENT, MP_TOKEN_DEL_PERCENT_EQUAL,
     MP_TOKEN_OP_CARET, MP_TOKEN_DEL_CARET_EQUAL,
     MP_TOKEN_DEL_EQUAL, MP_TOKEN_OP_DBL_EQUAL,
-    MP_TOKEN_OP_NOT_EQUAL,
 };
 
 // must have the same order as enum in lexer.h
@@ -349,7 +340,7 @@ STATIC void parse_string_literal(mp_lexer_t *lex, bool is_raw) {
                             // 3MB of text; even gzip-compressed and with minimal structure, it'll take
                             // roughly half a meg of storage. This form of Unicode escape may be added
                             // later on, but it's definitely not a priority right now. -- CJA 20140607
-                            mp_not_implemented("unicode name escapes");
+                            mp_raise_NotImplementedError("unicode name escapes");
                             break;
                         default:
                             if (c >= '0' && c <= '7') {
@@ -599,23 +590,11 @@ void mp_lexer_to_next(mp_lexer_t *lex) {
                 }
                 vstr_add_char(&lex->vstr, CUR_CHAR(lex));
                 next_char(lex);
+            } else if (is_char(lex, '_')) {
+                next_char(lex);
             } else {
                 break;
             }
-        }
-
-    } else if (is_char(lex, '.')) {
-        // special handling for . and ... operators, because .. is not a valid operator
-
-        // get first char
-        next_char(lex);
-
-        if (is_char_and(lex, '.', '.')) {
-            next_char(lex);
-            next_char(lex);
-            lex->tok_kind = MP_TOKEN_ELLIPSIS;
-        } else {
-            lex->tok_kind = MP_TOKEN_DEL_PERIOD;
         }
 
     } else {
@@ -625,9 +604,6 @@ void mp_lexer_to_next(mp_lexer_t *lex) {
         size_t tok_enc_index = 0;
         for (; *t != 0 && !is_char(lex, *t); t += 1) {
             if (*t == 'e' || *t == 'c') {
-                t += 1;
-            } else if (*t == 'E') {
-                tok_enc_index -= 1;
                 t += 1;
             }
             tok_enc_index += 1;
@@ -639,54 +615,47 @@ void mp_lexer_to_next(mp_lexer_t *lex) {
             // didn't match any delimiter or operator characters
             lex->tok_kind = MP_TOKEN_INVALID;
 
+        } else if (*t == '!') {
+            // "!=" is a special case because "!" is not a valid operator
+            if (is_char(lex, '=')) {
+                next_char(lex);
+                lex->tok_kind = MP_TOKEN_OP_NOT_EQUAL;
+            } else {
+                lex->tok_kind = MP_TOKEN_INVALID;
+            }
+
+        } else if (*t == '.') {
+            // "." and "..." are special cases because ".." is not a valid operator
+            if (is_char_and(lex, '.', '.')) {
+                next_char(lex);
+                next_char(lex);
+                lex->tok_kind = MP_TOKEN_ELLIPSIS;
+            } else {
+                lex->tok_kind = MP_TOKEN_DEL_PERIOD;
+            }
+
         } else {
             // matched a delimiter or operator character
 
             // get the maximum characters for a valid token
             t += 1;
             size_t t_index = tok_enc_index;
-            for (;;) {
-                for (; *t == 'e'; t += 1) {
-                    t += 1;
-                    t_index += 1;
-                    if (is_char(lex, *t)) {
-                        next_char(lex);
-                        tok_enc_index = t_index;
+            while (*t == 'c' || *t == 'e') {
+                t_index += 1;
+                if (is_char(lex, t[1])) {
+                    next_char(lex);
+                    tok_enc_index = t_index;
+                    if (*t == 'e') {
                         break;
                     }
-                }
-
-                if (*t == 'E') {
-                    t += 1;
-                    if (is_char(lex, *t)) {
-                        next_char(lex);
-                        tok_enc_index = t_index;
-                    } else {
-                        lex->tok_kind = MP_TOKEN_INVALID;
-                        goto tok_enc_no_match;
-                    }
+                } else if (*t == 'c') {
                     break;
                 }
-
-                if (*t == 'c') {
-                    t += 1;
-                    t_index += 1;
-                    if (is_char(lex, *t)) {
-                        next_char(lex);
-                        tok_enc_index = t_index;
-                        t += 1;
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
-                }
+                t += 2;
             }
 
             // set token kind
             lex->tok_kind = tok_enc_kind[tok_enc_index];
-
-            tok_enc_no_match:
 
             // compute bracket level for implicit line joining
             if (lex->tok_kind == MP_TOKEN_DEL_PAREN_OPEN || lex->tok_kind == MP_TOKEN_DEL_BRACKET_OPEN || lex->tok_kind == MP_TOKEN_DEL_BRACE_OPEN) {
@@ -704,7 +673,7 @@ mp_lexer_t *mp_lexer_new(qstr src_name, mp_reader_t reader) {
     lex->source_name = src_name;
     lex->reader = reader;
     lex->line = 1;
-    lex->column = 1;
+    lex->column = (size_t)-2; // account for 3 dummy bytes
     lex->emit_dent = 0;
     lex->nested_bracket_level = 0;
     lex->alloc_indent_level = MICROPY_ALLOC_LEXER_INDENT_INIT;
@@ -715,27 +684,12 @@ mp_lexer_t *mp_lexer_new(qstr src_name, mp_reader_t reader) {
     // store sentinel for first indentation level
     lex->indent_level[0] = 0;
 
-    // preload characters
-    lex->chr0 = reader.readbyte(reader.data);
-    lex->chr1 = reader.readbyte(reader.data);
-    lex->chr2 = reader.readbyte(reader.data);
-
-    // if input stream is 0, 1 or 2 characters long and doesn't end in a newline, then insert a newline at the end
-    if (lex->chr0 == MP_LEXER_EOF) {
-        lex->chr0 = '\n';
-    } else if (lex->chr1 == MP_LEXER_EOF) {
-        if (lex->chr0 == '\r') {
-            lex->chr0 = '\n';
-        } else if (lex->chr0 != '\n') {
-            lex->chr1 = '\n';
-        }
-    } else if (lex->chr2 == MP_LEXER_EOF) {
-        if (lex->chr1 == '\r') {
-            lex->chr1 = '\n';
-        } else if (lex->chr1 != '\n') {
-            lex->chr2 = '\n';
-        }
-    }
+    // load lexer with start of file, advancing lex->column to 1
+    // start with dummy bytes and use next_char() for proper EOL/EOF handling
+    lex->chr0 = lex->chr1 = lex->chr2 = 0;
+    next_char(lex);
+    next_char(lex);
+    next_char(lex);
 
     // preload first token
     mp_lexer_to_next(lex);

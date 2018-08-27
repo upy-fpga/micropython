@@ -1,4 +1,5 @@
 .. currentmodule:: machine
+.. _machine.UART:
 
 class UART -- duplex serial communication bus
 =============================================
@@ -15,19 +16,15 @@ UART objects can be created and initialised using::
     uart = UART(1, 9600)                         # init with given baudrate
     uart.init(9600, bits=8, parity=None, stop=1) # init with given parameters
 
-.. only:: port_machineoard
+Supported parameters differ on a board:
 
-    Bits can be 7, 8 or 9.  Parity can be None, 0 (even) or 1 (odd).  Stop can be 1 or 2.
-    
-    *Note:* with parity=None, only 8 and 9 bits are supported.  With parity enabled,
-    only 7 and 8 bits are supported.
+Pyboard: Bits can be 7, 8 or 9. Stop can be 1 or 2. With *parity=None*,
+only 8 and 9 bits are supported.  With parity enabled, only 7 and 8 bits
+are supported.
 
-.. only:: port_wipy
+WiPy/CC3200: Bits can be 5, 6, 7, 8. Stop can be 1 or 2.
 
-    Bits can be 5, 6, 7, 8.  Parity can be ``None``, ``UART.EVEN`` or ``UART.ODD``.  Stop can be 1 or 2.
-
-
-A UART object acts like a stream object and reading and writing is done
+A UART object acts like a `stream` object and reading and writing is done
 using the standard stream methods::
 
     uart.read(10)       # read 10 characters, returns a bytes object
@@ -36,62 +33,56 @@ using the standard stream methods::
     uart.readinto(buf)  # read and store into the given buffer
     uart.write('abc')   # write the 3 characters
 
-.. only:: port_pyboard
-
-    Individual characters can be read/written using::
-
-        uart.readchar()     # read 1 character and returns it as an integer
-        uart.writechar(42)  # write 1 character
-
-    To check if there is anything to be read, use::
-
-        uart.any()               # returns True if any characters waiting
-
-.. only:: port_wipy
-
-    To check if there is anything to be read, use::
-
-        uart.any()               # returns the number of characters available for reading
-
 Constructors
 ------------
 
-.. only:: port_wipy
+.. class:: UART(id, ...)
 
-    .. class:: UART(bus, ...)
-    
-       Construct a UART object on the given bus.  ``bus`` can be 0 or 1.
-       If the bus is not given, the default one will be selected (0) or the selection
-       will be made based on the given pins.
+   Construct a UART object of the given id.
 
 Methods
 -------
 
-.. only:: port_wipy
+.. method:: UART.init(baudrate=9600, bits=8, parity=None, stop=1, \*, ...)
 
-    .. method:: UART.init(baudrate=9600, bits=8, parity=None, stop=1, \*, pins=(TX, RX, RTS, CTS))
-    
-       Initialise the UART bus with the given parameters:
-    
-         - ``baudrate`` is the clock rate.
-         - ``bits`` is the number of bits per character, 7, 8 or 9.
-         - ``parity`` is the parity, ``None``, ``UART.EVEN`` or ``UART.ODD``.
-         - ``stop`` is the number of stop bits, 1 or 2.
-         - ``pins`` is a 4 or 2 item list indicating the TX, RX, RTS and CTS pins (in that order).
-           Any of the pins can be None if one wants the UART to operate with limited functionality.
-           If the RTS pin is given the the RX pin must be given as well. The same applies to CTS. 
-           When no pins are given, then the default set of TX and RX pins is taken, and hardware 
-           flow control will be disabled. If pins=None, no pin assignment will be made.
+   Initialise the UART bus with the given parameters:
 
-.. only:: not port_esp8266
+     - *baudrate* is the clock rate.
+     - *bits* is the number of bits per character, 7, 8 or 9.
+     - *parity* is the parity, ``None``, 0 (even) or 1 (odd).
+     - *stop* is the number of stop bits, 1 or 2.
 
-    .. method:: UART.deinit()
+   Additional keyword-only parameters that may be supported by a port are:
 
-       Turn off the UART bus.
+     - *tx* specifies the TX pin to use.
+     - *rx* specifies the RX pin to use.
+     - *txbuf* specifies the length in characters of the TX buffer.
+     - *rxbuf* specifies the length in characters of the RX buffer.
 
-    .. method:: UART.any()
+   On the WiPy only the following keyword-only parameter is supported:
 
-       Return the number of characters available for reading.
+     - *pins* is a 4 or 2 item list indicating the TX, RX, RTS and CTS pins (in that order).
+       Any of the pins can be None if one wants the UART to operate with limited functionality.
+       If the RTS pin is given the the RX pin must be given as well. The same applies to CTS.
+       When no pins are given, then the default set of TX and RX pins is taken, and hardware
+       flow control will be disabled. If *pins* is ``None``, no pin assignment will be made.
+
+.. method:: UART.deinit()
+
+   Turn off the UART bus.
+
+.. method:: UART.any()
+
+   Returns an integer counting the number of characters that can be read without
+   blocking.  It will return 0 if there are no characters available and a positive
+   number if there are characters.  The method may return 1 even if there is more
+   than one character available for reading.
+
+   For more sophisticated querying of available characters use select.poll::
+
+    poll = select.poll()
+    poll.register(uart, select.POLLIN)
+    poll.poll(timeout)
 
 .. method:: UART.read([nbytes])
 
@@ -121,49 +112,41 @@ Methods
 
    Return value: number of bytes written or ``None`` on timeout.
 
-.. only:: not port_esp8266
+.. method:: UART.sendbreak()
 
-    .. method:: UART.sendbreak()
+   Send a break condition on the bus. This drives the bus low for a duration
+   longer than required for a normal transmission of a character.
 
-       Send a break condition on the bus.  This drives the bus low for a duration
-       of 13 bits.
-       Return value: ``None``.
+.. method:: UART.irq(trigger, priority=1, handler=None, wake=machine.IDLE)
 
-.. only:: port_wipy
+   Create a callback to be triggered when data is received on the UART.
 
-    .. method:: UART.irq(trigger, priority=1, handler=None, wake=machine.IDLE)
+       - *trigger* can only be ``UART.RX_ANY``
+       - *priority* level of the interrupt. Can take values in the range 1-7.
+         Higher values represent higher priorities.
+       - *handler* an optional function to be called when new characters arrive.
+       - *wake* can only be ``machine.IDLE``.
 
-       Create a callback to be triggered when data is received on the UART.
+   .. note::
 
-           - ``trigger`` can only be ``UART.RX_ANY``
-           - ``priority`` level of the interrupt. Can take values in the range 1-7.
-             Higher values represent higher priorities.
-           - ``handler`` an optional function to be called when new characters arrive.
-           - ``wake`` can only be ``machine.IDLE``.
+      The handler will be called whenever any of the following two conditions are met:
 
-       .. note::
+          - 8 new characters have been received.
+          - At least 1 new character is waiting in the Rx buffer and the Rx line has been
+            silent for the duration of 1 complete frame.
 
-          The handler will be called whenever any of the following two conditions are met:
+      This means that when the handler function is called there will be between 1 to 8
+      characters waiting.
 
-              - 8 new characters have been received.
-              - At least 1 new character is waiting in the Rx buffer and the Rx line has been
-                silent for the duration of 1 complete frame.
+   Returns an irq object.
 
-          This means that when the handler function is called there will be between 1 to 8 
-          characters waiting.
+   Availability: WiPy.
 
-       Returns an irq object.
+Constants
+---------
 
-.. only:: not port_esp8266
+.. data:: UART.RX_ANY
 
-    Constants
-    ---------
+    IRQ trigger sources
 
-    .. data:: UART.EVEN
-    .. data:: UART.ODD
-
-        parity types (along with ``None``)
-
-    .. data:: UART.RX_ANY
-
-        IRQ trigger sources
+    Availability: WiPy.

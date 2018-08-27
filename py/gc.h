@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -23,8 +23,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef __MICROPY_INCLUDED_PY_GC_H__
-#define __MICROPY_INCLUDED_PY_GC_H__
+#ifndef MICROPY_INCLUDED_PY_GC_H
+#define MICROPY_INCLUDED_PY_GC_H
 
 #include <stdint.h>
 
@@ -45,6 +45,9 @@ void gc_collect_start(void);
 void gc_collect_root(void **ptrs, size_t len);
 void gc_collect_end(void);
 
+// Use this function to sweep the whole heap and run all finalisers
+void gc_sweep_all(void);
+
 void *gc_alloc(size_t n_bytes, bool has_finaliser);
 void gc_free(void *ptr); // does not call finaliser
 size_t gc_nbytes(const void *ptr);
@@ -64,4 +67,4 @@ void gc_info(gc_info_t *info);
 void gc_dump_info(void);
 void gc_dump_alloc_table(void);
 
-#endif // __MICROPY_INCLUDED_PY_GC_H__
+#endif // MICROPY_INCLUDED_PY_GC_H

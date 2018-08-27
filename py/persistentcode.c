@@ -39,7 +39,7 @@
 #include "py/smallint.h"
 
 // The current version of .mpy files
-#define MPY_VERSION (1)
+#define MPY_VERSION (3)
 
 // The feature flags byte encodes the compile-time config options that
 // affect the generate bytecode.
@@ -99,7 +99,6 @@ STATIC void extract_prelude(const byte **ip, const byte **ip2, bytecode_prelude_
 #if MICROPY_PERSISTENT_CODE_LOAD
 
 #include "py/parsenum.h"
-#include "py/bc0.h"
 
 STATIC int read_byte(mp_reader_t *reader) {
     return reader->readbyte(reader->data);
@@ -201,7 +200,11 @@ STATIC mp_raw_code_t *load_raw_code(mp_reader_t *reader) {
 
     // create raw_code and return it
     mp_raw_code_t *rc = mp_emit_glue_new_raw_code();
-    mp_emit_glue_assign_bytecode(rc, bytecode, bc_len, const_table,
+    mp_emit_glue_assign_bytecode(rc, bytecode,
+        #if MICROPY_PERSISTENT_CODE_SAVE || MICROPY_DEBUG_PRINTERS
+        bc_len,
+        #endif
+        const_table,
         #if MICROPY_PERSISTENT_CODE_SAVE
         n_obj, n_raw_code,
         #endif
@@ -286,11 +289,13 @@ STATIC void save_obj(mp_print_t *print, mp_obj_t o) {
         byte obj_type;
         if (MP_OBJ_IS_TYPE(o, &mp_type_int)) {
             obj_type = 'i';
-        } else if (mp_obj_is_float(o)) {
-            obj_type = 'f';
-        } else {
-            assert(MP_OBJ_IS_TYPE(o, &mp_type_complex));
+        #if MICROPY_PY_BUILTINS_COMPLEX
+        } else if (MP_OBJ_IS_TYPE(o, &mp_type_complex)) {
             obj_type = 'c';
+        #endif
+        } else {
+            assert(mp_obj_is_float(o));
+            obj_type = 'f';
         }
         vstr_t vstr;
         mp_print_t pr;
@@ -372,7 +377,7 @@ void mp_raw_code_save(mp_raw_code_t *rc, mp_print_t *print) {
 // here we define mp_raw_code_save_file depending on the port
 // TODO abstract this away properly
 
-#if defined(__i386__) || defined(__x86_64__) || (defined(__arm__) && (defined(__unix__)))
+#if defined(__i386__) || defined(__x86_64__) || defined(__unix__)
 
 #include <unistd.h>
 #include <sys/stat.h>

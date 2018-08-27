@@ -33,16 +33,16 @@ import time
 import re
 from collections import namedtuple
 
-# Micropython supports syntax of CPython 3.4 with some features from 3.5, and
+# MicroPython supports syntax of CPython 3.4 with some features from 3.5, and
 # such version should be used to test for differences. If your default python3
 # executable is of lower version, you can point MICROPY_CPYTHON3 environment var
 # to the correct executable.
 if os.name == 'nt':
     CPYTHON3 = os.getenv('MICROPY_CPYTHON3', 'python3.exe')
-    MICROPYTHON = os.getenv('MICROPY_MICROPYTHON', '../windows/micropython.exe')
+    MICROPYTHON = os.getenv('MICROPY_MICROPYTHON', '../ports/windows/micropython.exe')
 else:
     CPYTHON3 = os.getenv('MICROPY_CPYTHON3', 'python3')
-    MICROPYTHON = os.getenv('MICROPY_MICROPYTHON', '../unix/micropython')
+    MICROPYTHON = os.getenv('MICROPY_MICROPYTHON', '../ports/unix/micropython')
 
 TESTPATH = '../tests/cpydiff/'
 DOCPATH = '../docs/genrst/'
@@ -185,7 +185,9 @@ def gen_rst(results):
                     rst.write(RSTCHARS[min(i, len(RSTCHARS)-1)] * len(section[i]))
                     rst.write('\n\n')
         class_ = section
-        rst.write('**' + output.desc + '**\n\n')
+        rst.write('.. _cpydiff_%s:\n\n' % output.name.rsplit('.', 1)[0])
+        rst.write(output.desc + '\n')
+        rst.write('~' * len(output.desc) + '\n\n')
         if output.cause != 'Unknown':
             rst.write('**Cause:** ' + output.cause + '\n\n')
         if output.workaround != 'Unknown':

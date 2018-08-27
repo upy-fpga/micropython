@@ -23,9 +23,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MICROPY_INCLUDED_PY_MPERRNO_H
+#define MICROPY_INCLUDED_PY_MPERRNO_H
 
-#ifndef __MICROPY_INCLUDED_PY_MPERRNO_H__
-#define __MICROPY_INCLUDED_PY_MPERRNO_H__
+#include "py/mpconfig.h"
 
 #if MICROPY_USE_INTERNAL_ERRNO
 
@@ -73,6 +74,7 @@
 #define MP_ECONNABORTED     (103) // Software caused connection abort
 #define MP_ECONNRESET       (104) // Connection reset by peer
 #define MP_ENOBUFS          (105) // No buffer space available
+#define MP_EISCONN          (106) // Transport endpoint is already connected
 #define MP_ENOTCONN         (107) // Transport endpoint is not connected
 #define MP_ETIMEDOUT        (110) // Connection timed out
 #define MP_ECONNREFUSED     (111) // Connection refused
@@ -120,13 +122,14 @@
 #define MP_EPIPE            EPIPE
 #define MP_EDOM             EDOM
 #define MP_ERANGE           ERANGE
-#define MP_EWOULDBLOCK      EAGAIN
+#define MP_EWOULDBLOCK      EWOULDBLOCK
 #define MP_EOPNOTSUPP       EOPNOTSUPP
 #define MP_EAFNOSUPPORT     EAFNOSUPPORT
 #define MP_EADDRINUSE       EADDRINUSE
 #define MP_ECONNABORTED     ECONNABORTED
 #define MP_ECONNRESET       ECONNRESET
 #define MP_ENOBUFS          ENOBUFS
+#define MP_EISCONN          EISCONN
 #define MP_ENOTCONN         ENOTCONN
 #define MP_ETIMEDOUT        ETIMEDOUT
 #define MP_ECONNREFUSED     ECONNREFUSED
@@ -137,7 +140,11 @@
 #endif
 
 #if MICROPY_PY_UERRNO
+
+#include "py/obj.h"
+
 qstr mp_errno_to_str(mp_obj_t errno_val);
+
 #endif
 
-#endif // __MICROPY_INCLUDED_PY_MPERRNO_H__
+#endif // MICROPY_INCLUDED_PY_MPERRNO_H

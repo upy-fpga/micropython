@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -28,11 +28,9 @@
 #include <string.h>
 #include <assert.h>
 
-#include "py/nlr.h"
 #include "py/unicode.h"
 #include "py/objstr.h"
 #include "py/objlist.h"
-#include "py/runtime0.h"
 #include "py/runtime.h"
 #include "py/stackctrl.h"
 
@@ -161,14 +159,31 @@ mp_obj_t mp_obj_str_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_
                 if (str_hash == 0) {
                     str_hash = qstr_compute_hash(str_data, str_len);
                 }
-                mp_obj_str_t *o = MP_OBJ_TO_PTR(mp_obj_new_str_of_type(type, NULL, str_len));
+                #if MICROPY_PY_BUILTINS_STR_UNICODE_CHECK
+                if (!utf8_check(str_data, str_len)) {
+                    mp_raise_msg(&mp_type_UnicodeError, NULL);
+                }
+                #endif
+
+                // Check if a qstr with this data already exists
+                qstr q = qstr_find_strn((const char*)str_data, str_len);
+                if (q != MP_QSTR_NULL) {
+                    return MP_OBJ_NEW_QSTR(q);
+                }
+
+                mp_obj_str_t *o = MP_OBJ_TO_PTR(mp_obj_new_str_copy(type, NULL, str_len));
                 o->data = str_data;
                 o->hash = str_hash;
                 return MP_OBJ_FROM_PTR(o);
             } else {
                 mp_buffer_info_t bufinfo;
                 mp_get_buffer_raise(args[0], &bufinfo, MP_BUFFER_READ);
-                return mp_obj_new_str(bufinfo.buf, bufinfo.len, false);
+                #if MICROPY_PY_BUILTINS_STR_UNICODE_CHECK
+                if (!utf8_check(bufinfo.buf, bufinfo.len)) {
+                    mp_raise_msg(&mp_type_UnicodeError, NULL);
+                }
+                #endif
+                return mp_obj_new_str(bufinfo.buf, bufinfo.len);
             }
     }
 }
@@ -197,7 +212,7 @@ STATIC mp_obj_t bytes_make_new(const mp_obj_type_t *type_in, size_t n_args, size
         if (str_hash == 0) {
             str_hash = qstr_compute_hash(str_data, str_len);
         }
-        mp_obj_str_t *o = MP_OBJ_TO_PTR(mp_obj_new_str_of_type(&mp_type_bytes, NULL, str_len));
+        mp_obj_str_t *o = MP_OBJ_TO_PTR(mp_obj_new_str_copy(&mp_type_bytes, NULL, str_len));
         o->data = str_data;
         o->hash = str_hash;
         return MP_OBJ_FROM_PTR(o);
@@ -208,7 +223,10 @@ STATIC mp_obj_t bytes_make_new(const mp_obj_type_t *type_in, size_t n_args, size
     }
 
     if (MP_OBJ_IS_SMALL_INT(args[0])) {
-        uint len = MP_OBJ_SMALL_INT_VALUE(args[0]);
+        mp_int_t len = MP_OBJ_SMALL_INT_VALUE(args[0]);
+        if (len < 0) {
+            mp_raise_ValueError(NULL);
+        }
         vstr_t vstr;
         vstr_init_len(&vstr, len);
         memset(vstr.buf, 0, len);
@@ -218,7 +236,7 @@ STATIC mp_obj_t bytes_make_new(const mp_obj_type_t *type_in, size_t n_args, size
     // check if argument has the buffer protocol
     mp_buffer_info_t bufinfo;
     if (mp_get_buffer(args[0], &bufinfo, MP_BUFFER_READ)) {
-        return mp_obj_new_str_of_type(&mp_type_bytes, bufinfo.buf, bufinfo.len);
+        return mp_obj_new_bytes(bufinfo.buf, bufinfo.len);
     }
 
     vstr_t vstr;
@@ -236,7 +254,7 @@ STATIC mp_obj_t bytes_make_new(const mp_obj_type_t *type_in, size_t n_args, size
     mp_obj_t item;
     while ((item = mp_iternext(iterable)) != MP_OBJ_STOP_ITERATION) {
         mp_int_t val = mp_obj_get_int(item);
-        #if MICROPY_CPYTHON_COMPAT
+        #if MICROPY_FULL_CHECKS
         if (val < 0 || val > 255) {
             mp_raise_ValueError("bytes value out of range");
         }
@@ -280,11 +298,11 @@ const byte *find_subbytes(const byte *haystack, size_t hlen, const byte *needle,
 // Note: this function is used to check if an object is a str or bytes, which
 // works because both those types use it as their binary_op method.  Revisit
 // MP_OBJ_IS_STR_OR_BYTES if this fact changes.
-mp_obj_t mp_obj_str_binary_op(mp_uint_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
+mp_obj_t mp_obj_str_binary_op(mp_binary_op_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
     // check for modulo
     if (op == MP_BINARY_OP_MODULO) {
         mp_obj_t *args = &rhs_in;
-        mp_uint_t n_args = 1;
+        size_t n_args = 1;
         mp_obj_t dict = MP_OBJ_NULL;
         if (MP_OBJ_IS_TYPE(rhs_in, &mp_type_tuple)) {
             // TODO: Support tuple subclasses?
@@ -347,14 +365,15 @@ mp_obj_t mp_obj_str_binary_op(mp_uint_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
         rhs_data = bufinfo.buf;
         rhs_len = bufinfo.len;
     } else {
-        // incompatible types
-        return MP_OBJ_NULL; // op not supported
+        // LHS is str and RHS has an incompatible type
+        // (except if operation is EQUAL, but that's handled by mp_obj_equal)
+        bad_implicit_conversion(rhs_in);
     }
 
     switch (op) {
         case MP_BINARY_OP_ADD:
         case MP_BINARY_OP_INPLACE_ADD: {
-            if (lhs_len == 0) {
+            if (lhs_len == 0 && mp_obj_get_type(rhs_in) == lhs_type) {
                 return rhs_in;
             }
             if (rhs_len == 0) {
@@ -368,8 +387,7 @@ mp_obj_t mp_obj_str_binary_op(mp_uint_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
             return mp_obj_new_str_from_vstr(lhs_type, &vstr);
         }
 
-        case MP_BINARY_OP_IN:
-            /* NOTE `a in b` is `b.__contains__(a)` */
+        case MP_BINARY_OP_CONTAINS:
             return mp_obj_new_bool(find_subbytes(lhs_data, lhs_len, rhs_data, rhs_len, 1) != NULL);
 
         //case MP_BINARY_OP_NOT_EQUAL: // This is never passed here
@@ -379,16 +397,17 @@ mp_obj_t mp_obj_str_binary_op(mp_uint_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
         case MP_BINARY_OP_MORE:
         case MP_BINARY_OP_MORE_EQUAL:
             return mp_obj_new_bool(mp_seq_cmp_bytes(op, lhs_data, lhs_len, rhs_data, rhs_len));
-    }
 
-    return MP_OBJ_NULL; // op not supported
+        default:
+            return MP_OBJ_NULL; // op not supported
+    }
 }
 
 #if !MICROPY_PY_BUILTINS_STR_UNICODE
 // objstrunicode defines own version
 const byte *str_index_to_ptr(const mp_obj_type_t *type, const byte *self_data, size_t self_len,
                              mp_obj_t index, bool is_slice) {
-    mp_uint_t index_val = mp_get_index(type, self_len, index, is_slice);
+    size_t index_val = mp_get_index(type, self_len, index, is_slice);
     return self_data + index_val;
 }
 #endif
@@ -403,17 +422,17 @@ STATIC mp_obj_t bytes_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
         if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
             mp_bound_slice_t slice;
             if (!mp_seq_get_fast_slice_indexes(self_len, index, &slice)) {
-                mp_not_implemented("only slices with step=1 (aka None) are supported");
+                mp_raise_NotImplementedError("only slices with step=1 (aka None) are supported");
             }
             return mp_obj_new_str_of_type(type, self_data + slice.start, slice.stop - slice.start);
         }
 #endif
-        mp_uint_t index_val = mp_get_index(type, self_len, index, false);
+        size_t index_val = mp_get_index(type, self_len, index, false);
         // If we have unicode enabled the type will always be bytes, so take the short cut.
         if (MICROPY_PY_BUILTINS_STR_UNICODE || type == &mp_type_bytes) {
             return MP_OBJ_NEW_SMALL_INT(self_data[index_val]);
         } else {
-            return mp_obj_new_str((char*)&self_data[index_val], 1, true);
+            return mp_obj_new_str_via_qstr((char*)&self_data[index_val], 1);
         }
     } else {
         return MP_OBJ_NULL; // op not supported
@@ -428,7 +447,7 @@ STATIC mp_obj_t str_join(mp_obj_t self_in, mp_obj_t arg) {
     GET_STR_DATA_LEN(self_in, sep_str, sep_len);
 
     // process args
-    mp_uint_t seq_len;
+    size_t seq_len;
     mp_obj_t *seq_items;
 
     if (!MP_OBJ_IS_TYPE(arg, &mp_type_list) && !MP_OBJ_IS_TYPE(arg, &mp_type_tuple)) {
@@ -469,6 +488,7 @@ STATIC mp_obj_t str_join(mp_obj_t self_in, mp_obj_t arg) {
     // return joined string
     return mp_obj_new_str_from_vstr(self_type, &vstr);
 }
+MP_DEFINE_CONST_FUN_OBJ_2(str_join_obj, str_join);
 
 mp_obj_t mp_obj_str_split(size_t n_args, const mp_obj_t *args) {
     const mp_obj_type_t *self_type = mp_obj_get_type(args[0]);
@@ -513,7 +533,7 @@ mp_obj_t mp_obj_str_split(size_t n_args, const mp_obj_t *args) {
             bad_implicit_conversion(sep);
         }
 
-        mp_uint_t sep_len;
+        size_t sep_len;
         const char *sep_str = mp_obj_str_get_data(sep, &sep_len);
 
         if (sep_len == 0) {
@@ -544,6 +564,7 @@ mp_obj_t mp_obj_str_split(size_t n_args, const mp_obj_t *args) {
 
     return res;
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_split_obj, 1, 3, mp_obj_str_split);
 
 #if MICROPY_PY_BUILTINS_STR_SPLITLINES
 STATIC mp_obj_t str_splitlines(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -589,6 +610,7 @@ STATIC mp_obj_t str_splitlines(size_t n_args, const mp_obj_t *pos_args, mp_map_t
 
     return res;
 }
+MP_DEFINE_CONST_FUN_OBJ_KW(str_splitlines_obj, 1, str_splitlines);
 #endif
 
 STATIC mp_obj_t str_rsplit(size_t n_args, const mp_obj_t *args) {
@@ -602,6 +624,11 @@ STATIC mp_obj_t str_rsplit(size_t n_args, const mp_obj_t *args) {
     GET_STR_DATA_LEN(args[0], s, len);
 
     mp_int_t splits = mp_obj_get_int(args[2]);
+    if (splits < 0) {
+        // Negative limit means no limit, so delegate to split().
+        return mp_obj_str_split(n_args, args);
+    }
+
     mp_int_t org_splits = splits;
     // Preallocate list to the max expected # of elements, as we
     // will fill it from the end.
@@ -609,9 +636,9 @@ STATIC mp_obj_t str_rsplit(size_t n_args, const mp_obj_t *args) {
     mp_int_t idx = splits;
 
     if (sep == mp_const_none) {
-        mp_not_implemented("rsplit(None,n)");
+        mp_raise_NotImplementedError("rsplit(None,n)");
     } else {
-        mp_uint_t sep_len;
+        size_t sep_len;
         const char *sep_str = mp_obj_str_get_data(sep, &sep_len);
 
         if (sep_len == 0) {
@@ -636,9 +663,7 @@ STATIC mp_obj_t str_rsplit(size_t n_args, const mp_obj_t *args) {
             }
             res->items[idx--] = mp_obj_new_str_of_type(self_type, s + sep_len, last - s - sep_len);
             last = s;
-            if (splits > 0) {
-                splits--;
-            }
+            splits--;
         }
         if (idx != 0) {
             // We split less parts than split limit, now go cleanup surplus
@@ -651,6 +676,7 @@ STATIC mp_obj_t str_rsplit(size_t n_args, const mp_obj_t *args) {
 
     return MP_OBJ_FROM_PTR(res);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rsplit_obj, 1, 3, str_rsplit);
 
 STATIC mp_obj_t str_finder(size_t n_args, const mp_obj_t *args, int direction, bool is_index) {
     const mp_obj_type_t *self_type = mp_obj_get_type(args[0]);
@@ -673,8 +699,13 @@ STATIC mp_obj_t str_finder(size_t n_args, const mp_obj_t *args, int direction, b
         end = str_index_to_ptr(self_type, haystack, haystack_len, args[3], true);
     }
 
+    if (end < start) {
+        goto out_error;
+    }
+
     const byte *p = find_subbytes(start, end - start, needle, needle_len, direction);
     if (p == NULL) {
+    out_error:
         // not found
         if (is_index) {
             mp_raise_ValueError("substring not found");
@@ -695,24 +726,29 @@ STATIC mp_obj_t str_finder(size_t n_args, const mp_obj_t *args, int direction, b
 STATIC mp_obj_t str_find(size_t n_args, const mp_obj_t *args) {
     return str_finder(n_args, args, 1, false);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_find_obj, 2, 4, str_find);
 
 STATIC mp_obj_t str_rfind(size_t n_args, const mp_obj_t *args) {
     return str_finder(n_args, args, -1, false);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rfind_obj, 2, 4, str_rfind);
 
 STATIC mp_obj_t str_index(size_t n_args, const mp_obj_t *args) {
     return str_finder(n_args, args, 1, true);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_index_obj, 2, 4, str_index);
 
 STATIC mp_obj_t str_rindex(size_t n_args, const mp_obj_t *args) {
     return str_finder(n_args, args, -1, true);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rindex_obj, 2, 4, str_rindex);
 
 // TODO: (Much) more variety in args
 STATIC mp_obj_t str_startswith(size_t n_args, const mp_obj_t *args) {
     const mp_obj_type_t *self_type = mp_obj_get_type(args[0]);
     GET_STR_DATA_LEN(args[0], str, str_len);
-    GET_STR_DATA_LEN(args[1], prefix, prefix_len);
+    size_t prefix_len;
+    const char *prefix = mp_obj_str_get_data(args[1], &prefix_len);
     const byte *start = str;
     if (n_args > 2) {
         start = str_index_to_ptr(self_type, str, str_len, args[2], true);
@@ -722,12 +758,14 @@ STATIC mp_obj_t str_startswith(size_t n_args, const mp_obj_t *args) {
     }
     return mp_obj_new_bool(memcmp(start, prefix, prefix_len) == 0);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_startswith_obj, 2, 3, str_startswith);
 
 STATIC mp_obj_t str_endswith(size_t n_args, const mp_obj_t *args) {
     GET_STR_DATA_LEN(args[0], str, str_len);
-    GET_STR_DATA_LEN(args[1], suffix, suffix_len);
+    size_t suffix_len;
+    const char *suffix = mp_obj_str_get_data(args[1], &suffix_len);
     if (n_args > 2) {
-        mp_not_implemented("start/end indices");
+        mp_raise_NotImplementedError("start/end indices");
     }
 
     if (suffix_len > str_len) {
@@ -735,6 +773,7 @@ STATIC mp_obj_t str_endswith(size_t n_args, const mp_obj_t *args) {
     }
     return mp_obj_new_bool(memcmp(str + (str_len - suffix_len), suffix, suffix_len) == 0);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_endswith_obj, 2, 3, str_endswith);
 
 enum { LSTRIP, RSTRIP, STRIP };
 
@@ -748,7 +787,7 @@ STATIC mp_obj_t str_uni_strip(int type, size_t n_args, const mp_obj_t *args) {
 
     if (n_args == 1) {
         chars_to_del = whitespace;
-        chars_to_del_len = sizeof(whitespace);
+        chars_to_del_len = sizeof(whitespace) - 1;
     } else {
         if (mp_obj_get_type(args[1]) != self_type) {
             bad_implicit_conversion(args[1]);
@@ -798,7 +837,7 @@ STATIC mp_obj_t str_uni_strip(int type, size_t n_args, const mp_obj_t *args) {
     }
 
     assert(last_good_char_pos >= first_good_char_pos);
-    //+1 to accomodate the last character
+    //+1 to accommodate the last character
     size_t stripped_len = last_good_char_pos - first_good_char_pos + 1;
     if (stripped_len == orig_str_len) {
         // If nothing was stripped, don't bother to dup original string
@@ -812,14 +851,17 @@ STATIC mp_obj_t str_uni_strip(int type, size_t n_args, const mp_obj_t *args) {
 STATIC mp_obj_t str_strip(size_t n_args, const mp_obj_t *args) {
     return str_uni_strip(STRIP, n_args, args);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_strip_obj, 1, 2, str_strip);
 
 STATIC mp_obj_t str_lstrip(size_t n_args, const mp_obj_t *args) {
     return str_uni_strip(LSTRIP, n_args, args);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_lstrip_obj, 1, 2, str_lstrip);
 
 STATIC mp_obj_t str_rstrip(size_t n_args, const mp_obj_t *args) {
     return str_uni_strip(RSTRIP, n_args, args);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rstrip_obj, 1, 2, str_rstrip);
 
 #if MICROPY_PY_BUILTINS_STR_CENTER
 STATIC mp_obj_t str_center(mp_obj_t str_in, mp_obj_t width_in) {
@@ -836,6 +878,7 @@ STATIC mp_obj_t str_center(mp_obj_t str_in, mp_obj_t width_in) {
     memcpy(vstr.buf + left, str, str_len);
     return mp_obj_new_str_from_vstr(mp_obj_get_type(str_in), &vstr);
 }
+MP_DEFINE_CONST_FUN_OBJ_2(str_center_obj, str_center);
 #endif
 
 // Takes an int arg, but only parses unsigned numbers, and only changes
@@ -1015,7 +1058,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
             } else {
                 const char *lookup;
                 for (lookup = field_name; lookup < field_name_top && *lookup != '.' && *lookup != '['; lookup++);
-                mp_obj_t field_q = mp_obj_new_str(field_name, lookup - field_name, true/*?*/);
+                mp_obj_t field_q = mp_obj_new_str_via_qstr(field_name, lookup - field_name); // should it be via qstr?
                 field_name = lookup;
                 mp_map_elem_t *key_elem = mp_map_lookup(kwargs, field_q, MP_MAP_LOOKUP);
                 if (key_elem == NULL) {
@@ -1024,7 +1067,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
                 arg = key_elem->value;
             }
             if (field_name < field_name_top) {
-                mp_not_implemented("attributes not supported yet");
+                mp_raise_NotImplementedError("attributes not supported yet");
             }
         } else {
             if (*arg_i < 0) {
@@ -1059,7 +1102,6 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
             arg = mp_obj_new_str_from_vstr(&mp_type_str, &arg_vstr);
         }
 
-        char sign = '\0';
         char fill = '\0';
         char align = '\0';
         int width = -1;
@@ -1095,7 +1137,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
                 } else if (*s == ' ') {
                     flags |= PF_FLAG_SPACE_SIGN;
                 }
-                sign = *s++;
+                s++;
             }
             if (*s == '#') {
                 flags |= PF_FLAG_SHOW_PREFIX;
@@ -1141,7 +1183,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
             fill = ' ';
         }
 
-        if (sign) {
+        if (flags & (PF_FLAG_SHOW_SIGN | PF_FLAG_SPACE_SIGN)) {
             if (type == 's') {
                 if (MICROPY_ERROR_REPORTING == MICROPY_ERROR_REPORTING_TERSE) {
                     terse_str_format_value_error();
@@ -1157,8 +1199,6 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
                         "sign not allowed with integer format specifier 'c'");
                 }
             }
-        } else {
-            sign = '-';
         }
 
         switch (align) {
@@ -1287,7 +1327,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
                         terse_str_format_value_error();
                     } else {
                         nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
-                            "unknown format code '%c' for object of type 'float'",
+                            "unknown format code '%c' for object of type '%s'",
                             type, mp_obj_get_type_str(arg)));
                     }
             }
@@ -1306,12 +1346,12 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
             switch (type) {
                 case '\0': // no explicit format type implies 's'
                 case 's': {
-                    mp_uint_t slen;
+                    size_t slen;
                     const char *s = mp_obj_str_get_data(arg, &slen);
                     if (precision < 0) {
                         precision = slen;
                     }
-                    if (slen > (mp_uint_t)precision) {
+                    if (slen > (size_t)precision) {
                         slen = precision;
                     }
                     mp_print_strn(&print, s, slen, flags, fill, width);
@@ -1323,7 +1363,7 @@ STATIC vstr_t mp_obj_str_format_helper(const char *str, const char *top, int *ar
                         terse_str_format_value_error();
                     } else {
                         nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
-                            "unknown format code '%c' for object of type 'str'",
+                            "unknown format code '%c' for object of type '%s'",
                             type, mp_obj_get_type_str(arg)));
                     }
             }
@@ -1341,6 +1381,7 @@ mp_obj_t mp_obj_str_format(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs
     vstr_t vstr = mp_obj_str_format_helper((const char*)str, (const char*)str + len, &arg_i, n_args, args, kwargs);
     return mp_obj_new_str_from_vstr(&mp_type_str, &vstr);
 }
+MP_DEFINE_CONST_FUN_OBJ_KW(str_format_obj, 1, mp_obj_str_format);
 
 STATIC mp_obj_t str_modulo_format(mp_obj_t pattern, size_t n_args, const mp_obj_t *args, mp_obj_t dict) {
     mp_check_self(MP_OBJ_IS_STR_OR_BYTES(pattern));
@@ -1384,7 +1425,7 @@ STATIC mp_obj_t str_modulo_format(mp_obj_t pattern, size_t n_args, const mp_obj_
                 }
                 ++str;
             }
-            mp_obj_t k_obj = mp_obj_new_str((const char*)key, str - key, true);
+            mp_obj_t k_obj = mp_obj_new_str_via_qstr((const char*)key, str - key);
             arg = mp_obj_dict_get(dict, k_obj);
             str++;
         }
@@ -1452,7 +1493,7 @@ not_enough_args:
         switch (*str) {
             case 'c':
                 if (MP_OBJ_IS_STR(arg)) {
-                    mp_uint_t slen;
+                    size_t slen;
                     const char *s = mp_obj_str_get_data(arg, &slen);
                     if (slen != 1) {
                         mp_raise_TypeError("%%c requires int or char");
@@ -1644,6 +1685,7 @@ STATIC mp_obj_t str_replace(size_t n_args, const mp_obj_t *args) {
 
     return mp_obj_new_str_from_vstr(self_type, &vstr);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_replace_obj, 3, 4, str_replace);
 
 STATIC mp_obj_t str_count(size_t n_args, const mp_obj_t *args) {
     const mp_obj_type_t *self_type = mp_obj_get_type(args[0]);
@@ -1668,7 +1710,7 @@ STATIC mp_obj_t str_count(size_t n_args, const mp_obj_t *args) {
 
     // if needle_len is zero then we count each gap between characters as an occurrence
     if (needle_len == 0) {
-        return MP_OBJ_NEW_SMALL_INT(unichar_charlen((const char*)start, end - start) + 1);
+        return MP_OBJ_NEW_SMALL_INT(utf8_charlen(start, end - start) + 1);
     }
 
     // count the occurrences
@@ -1684,6 +1726,7 @@ STATIC mp_obj_t str_count(size_t n_args, const mp_obj_t *args) {
 
     return MP_OBJ_NEW_SMALL_INT(num_occurrences);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_count_obj, 2, 4, str_count);
 
 #if MICROPY_PY_BUILTINS_STR_PARTITION
 STATIC mp_obj_t str_partitioner(mp_obj_t self_in, mp_obj_t arg, int direction) {
@@ -1731,10 +1774,12 @@ STATIC mp_obj_t str_partitioner(mp_obj_t self_in, mp_obj_t arg, int direction) {
 STATIC mp_obj_t str_partition(mp_obj_t self_in, mp_obj_t arg) {
     return str_partitioner(self_in, arg, 1);
 }
+MP_DEFINE_CONST_FUN_OBJ_2(str_partition_obj, str_partition);
 
 STATIC mp_obj_t str_rpartition(mp_obj_t self_in, mp_obj_t arg) {
     return str_partitioner(self_in, arg, -1);
 }
+MP_DEFINE_CONST_FUN_OBJ_2(str_rpartition_obj, str_rpartition);
 #endif
 
 // Supposedly not too critical operations, so optimize for code size
@@ -1752,10 +1797,12 @@ STATIC mp_obj_t str_caseconv(unichar (*op)(unichar), mp_obj_t self_in) {
 STATIC mp_obj_t str_lower(mp_obj_t self_in) {
     return str_caseconv(unichar_tolower, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_lower_obj, str_lower);
 
 STATIC mp_obj_t str_upper(mp_obj_t self_in) {
     return str_caseconv(unichar_toupper, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_upper_obj, str_upper);
 
 STATIC mp_obj_t str_uni_istype(bool (*f)(unichar), mp_obj_t self_in) {
     GET_STR_DATA_LEN(self_in, self_data, self_len);
@@ -1793,25 +1840,30 @@ STATIC mp_obj_t str_uni_istype(bool (*f)(unichar), mp_obj_t self_in) {
 STATIC mp_obj_t str_isspace(mp_obj_t self_in) {
     return str_uni_istype(unichar_isspace, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_isspace_obj, str_isspace);
 
 STATIC mp_obj_t str_isalpha(mp_obj_t self_in) {
     return str_uni_istype(unichar_isalpha, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_isalpha_obj, str_isalpha);
 
 STATIC mp_obj_t str_isdigit(mp_obj_t self_in) {
     return str_uni_istype(unichar_isdigit, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_isdigit_obj, str_isdigit);
 
 STATIC mp_obj_t str_isupper(mp_obj_t self_in) {
     return str_uni_istype(unichar_isupper, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_isupper_obj, str_isupper);
 
 STATIC mp_obj_t str_islower(mp_obj_t self_in) {
     return str_uni_istype(unichar_islower, self_in);
 }
+MP_DEFINE_CONST_FUN_OBJ_1(str_islower_obj, str_islower);
 
 #if MICROPY_CPYTHON_COMPAT
-// These methods are superfluous in the presense of str() and bytes()
+// These methods are superfluous in the presence of str() and bytes()
 // constructors.
 // TODO: should accept kwargs too
 STATIC mp_obj_t bytes_decode(size_t n_args, const mp_obj_t *args) {
@@ -1824,6 +1876,7 @@ STATIC mp_obj_t bytes_decode(size_t n_args, const mp_obj_t *args) {
     }
     return mp_obj_str_make_new(&mp_type_str, n_args, 0, args);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(bytes_decode_obj, 1, 3, bytes_decode);
 
 // TODO: should accept kwargs too
 STATIC mp_obj_t str_encode(size_t n_args, const mp_obj_t *args) {
@@ -1836,6 +1889,7 @@ STATIC mp_obj_t str_encode(size_t n_args, const mp_obj_t *args) {
     }
     return bytes_make_new(NULL, n_args, 0, args);
 }
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_encode_obj, 1, 3, str_encode);
 #endif
 
 mp_int_t mp_obj_str_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_uint_t flags) {
@@ -1853,43 +1907,6 @@ mp_int_t mp_obj_str_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_u
         return 1;
     }
 }
-
-#if MICROPY_CPYTHON_COMPAT
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(bytes_decode_obj, 1, 3, bytes_decode);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_encode_obj, 1, 3, str_encode);
-#endif
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_find_obj, 2, 4, str_find);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rfind_obj, 2, 4, str_rfind);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_index_obj, 2, 4, str_index);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rindex_obj, 2, 4, str_rindex);
-MP_DEFINE_CONST_FUN_OBJ_2(str_join_obj, str_join);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_split_obj, 1, 3, mp_obj_str_split);
-#if MICROPY_PY_BUILTINS_STR_SPLITLINES
-MP_DEFINE_CONST_FUN_OBJ_KW(str_splitlines_obj, 1, str_splitlines);
-#endif
-#if MICROPY_PY_BUILTINS_STR_CENTER
-MP_DEFINE_CONST_FUN_OBJ_2(str_center_obj, str_center);
-#endif
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rsplit_obj, 1, 3, str_rsplit);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_startswith_obj, 2, 3, str_startswith);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_endswith_obj, 2, 3, str_endswith);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_strip_obj, 1, 2, str_strip);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_lstrip_obj, 1, 2, str_lstrip);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_rstrip_obj, 1, 2, str_rstrip);
-MP_DEFINE_CONST_FUN_OBJ_KW(str_format_obj, 1, mp_obj_str_format);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_replace_obj, 3, 4, str_replace);
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(str_count_obj, 2, 4, str_count);
-#if MICROPY_PY_BUILTINS_STR_PARTITION
-MP_DEFINE_CONST_FUN_OBJ_2(str_partition_obj, str_partition);
-MP_DEFINE_CONST_FUN_OBJ_2(str_rpartition_obj, str_rpartition);
-#endif
-MP_DEFINE_CONST_FUN_OBJ_1(str_lower_obj, str_lower);
-MP_DEFINE_CONST_FUN_OBJ_1(str_upper_obj, str_upper);
-MP_DEFINE_CONST_FUN_OBJ_1(str_isspace_obj, str_isspace);
-MP_DEFINE_CONST_FUN_OBJ_1(str_isalpha_obj, str_isalpha);
-MP_DEFINE_CONST_FUN_OBJ_1(str_isdigit_obj, str_isdigit);
-MP_DEFINE_CONST_FUN_OBJ_1(str_isupper_obj, str_isupper);
-MP_DEFINE_CONST_FUN_OBJ_1(str_islower_obj, str_islower);
 
 STATIC const mp_rom_map_elem_t str8_locals_dict_table[] = {
 #if MICROPY_CPYTHON_COMPAT
@@ -1968,12 +1985,13 @@ const mp_obj_type_t mp_type_bytes = {
     .locals_dict = (mp_obj_dict_t*)&str8_locals_dict,
 };
 
-// the zero-length bytes
-const mp_obj_str_t mp_const_empty_bytes_obj = {{&mp_type_bytes}, 0, 0, NULL};
+// The zero-length bytes object, with data that includes a null-terminating byte
+const mp_obj_str_t mp_const_empty_bytes_obj = {{&mp_type_bytes}, 0, 0, (const byte*)""};
 
 // Create a str/bytes object using the given data.  New memory is allocated and
-// the data is copied across.
-mp_obj_t mp_obj_new_str_of_type(const mp_obj_type_t *type, const byte* data, size_t len) {
+// the data is copied across.  This function should only be used if the type is bytes,
+// or if the type is str and the string data is known to be not interned.
+mp_obj_t mp_obj_new_str_copy(const mp_obj_type_t *type, const byte* data, size_t len) {
     mp_obj_str_t *o = m_new_obj(mp_obj_str_t);
     o->base.type = type;
     o->len = len;
@@ -1985,6 +2003,22 @@ mp_obj_t mp_obj_new_str_of_type(const mp_obj_type_t *type, const byte* data, siz
         p[len] = '\0'; // for now we add null for compatibility with C ASCIIZ strings
     }
     return MP_OBJ_FROM_PTR(o);
+}
+
+// Create a str/bytes object using the given data.  If the type is str and the string
+// data is already interned, then a qstr object is returned.  Otherwise new memory is
+// allocated for the object and the data is copied across.
+mp_obj_t mp_obj_new_str_of_type(const mp_obj_type_t *type, const byte* data, size_t len) {
+    if (type == &mp_type_str) {
+        return mp_obj_new_str((const char*)data, len);
+    } else {
+        return mp_obj_new_bytes(data, len);
+    }
+}
+
+// Create a str using a qstr to store the data; may use existing or new qstr.
+mp_obj_t mp_obj_new_str_via_qstr(const char* data, size_t len) {
+    return MP_OBJ_NEW_QSTR(qstr_from_strn(data, len));
 }
 
 // Create a str/bytes object from the given vstr.  The vstr buffer is resized to
@@ -2017,29 +2051,30 @@ mp_obj_t mp_obj_new_str_from_vstr(const mp_obj_type_t *type, vstr_t *vstr) {
     return MP_OBJ_FROM_PTR(o);
 }
 
-mp_obj_t mp_obj_new_str(const char* data, size_t len, bool make_qstr_if_not_already) {
-    if (make_qstr_if_not_already) {
-        // use existing, or make a new qstr
-        return MP_OBJ_NEW_QSTR(qstr_from_strn(data, len));
+mp_obj_t mp_obj_new_str(const char* data, size_t len) {
+    qstr q = qstr_find_strn(data, len);
+    if (q != MP_QSTR_NULL) {
+        // qstr with this data already exists
+        return MP_OBJ_NEW_QSTR(q);
     } else {
-        qstr q = qstr_find_strn(data, len);
-        if (q != MP_QSTR_NULL) {
-            // qstr with this data already exists
-            return MP_OBJ_NEW_QSTR(q);
-        } else {
-            // no existing qstr, don't make one
-            return mp_obj_new_str_of_type(&mp_type_str, (const byte*)data, len);
-        }
+        // no existing qstr, don't make one
+        return mp_obj_new_str_copy(&mp_type_str, (const byte*)data, len);
     }
 }
 
 mp_obj_t mp_obj_str_intern(mp_obj_t str) {
     GET_STR_DATA_LEN(str, data, len);
-    return MP_OBJ_NEW_QSTR(qstr_from_strn((const char*)data, len));
+    return mp_obj_new_str_via_qstr((const char*)data, len);
+}
+
+mp_obj_t mp_obj_str_intern_checked(mp_obj_t obj) {
+    size_t len;
+    const char *data = mp_obj_str_get_data(obj, &len);
+    return mp_obj_new_str_via_qstr((const char*)data, len);
 }
 
 mp_obj_t mp_obj_new_bytes(const byte* data, size_t len) {
-    return mp_obj_new_str_of_type(&mp_type_bytes, data, len);
+    return mp_obj_new_str_copy(&mp_type_bytes, data, len);
 }
 
 bool mp_obj_str_equal(mp_obj_t s1, mp_obj_t s2) {
@@ -2061,13 +2096,14 @@ bool mp_obj_str_equal(mp_obj_t s1, mp_obj_t s2) {
     }
 }
 
-STATIC void bad_implicit_conversion(mp_obj_t self_in) {
+STATIC NORETURN void bad_implicit_conversion(mp_obj_t self_in) {
     if (MICROPY_ERROR_REPORTING == MICROPY_ERROR_REPORTING_TERSE) {
         mp_raise_TypeError("can't convert to str implicitly");
     } else {
+        const qstr src_name = mp_obj_get_type(self_in)->name;
         nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError,
-            "can't convert '%s' object to str implicitly",
-            mp_obj_get_type_str(self_in)));
+            "can't convert '%q' object to %q implicitly",
+            src_name, src_name == MP_QSTR_str ? MP_QSTR_bytes : MP_QSTR_str));
     }
 }
 
@@ -2096,7 +2132,7 @@ const char *mp_obj_str_get_str(mp_obj_t self_in) {
     }
 }
 
-const char *mp_obj_str_get_data(mp_obj_t self_in, mp_uint_t *len) {
+const char *mp_obj_str_get_data(mp_obj_t self_in, size_t *len) {
     if (MP_OBJ_IS_STR_OR_BYTES(self_in)) {
         GET_STR_DATA_LEN(self_in, s, l);
         *len = l;
@@ -2129,10 +2165,10 @@ typedef struct _mp_obj_str8_it_t {
 
 #if !MICROPY_PY_BUILTINS_STR_UNICODE
 STATIC mp_obj_t str_it_iternext(mp_obj_t self_in) {
-    mp_obj_str8_it_t *self = self_in;
+    mp_obj_str8_it_t *self = MP_OBJ_TO_PTR(self_in);
     GET_STR_DATA_LEN(self->str, str, len);
     if (self->cur < len) {
-        mp_obj_t o_out = mp_obj_new_str((const char*)str + self->cur, 1, true);
+        mp_obj_t o_out = mp_obj_new_str_via_qstr((const char*)str + self->cur, 1);
         self->cur += 1;
         return o_out;
     } else {
@@ -2147,7 +2183,7 @@ STATIC mp_obj_t mp_obj_new_str_iterator(mp_obj_t str, mp_obj_iter_buf_t *iter_bu
     o->iternext = str_it_iternext;
     o->str = str;
     o->cur = 0;
-    return o;
+    return MP_OBJ_FROM_PTR(o);
 }
 #endif
 

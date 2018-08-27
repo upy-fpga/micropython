@@ -24,11 +24,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef __MICROPY_INCLUDED_PY_OBJARRAY_H__
-#define __MICROPY_INCLUDED_PY_OBJARRAY_H__
+#ifndef MICROPY_INCLUDED_PY_OBJARRAY_H
+#define MICROPY_INCLUDED_PY_OBJARRAY_H
 
 #include "py/obj.h"
+
+// Used only for memoryview types, set in "typecode" to indicate a writable memoryview
+#define MP_OBJ_ARRAY_TYPECODE_FLAG_RW (0x80)
 
 typedef struct _mp_obj_array_t {
     mp_obj_base_t base;
@@ -40,4 +42,4 @@ typedef struct _mp_obj_array_t {
     void *items;
 } mp_obj_array_t;
 
-#endif // __MICROPY_INCLUDED_PY_OBJARRAY_H__
+#endif // MICROPY_INCLUDED_PY_OBJARRAY_H

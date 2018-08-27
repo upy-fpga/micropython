@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -24,8 +24,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef __MICROPY_INCLUDED_PY_ASMARM_H__
-#define __MICROPY_INCLUDED_PY_ASMARM_H__
+#ifndef MICROPY_INCLUDED_PY_ASMARM_H
+#define MICROPY_INCLUDED_PY_ASMARM_H
 
 #include "py/misc.h"
 #include "py/asmbase.h"
@@ -98,6 +98,7 @@ void asm_arm_and_reg_reg_reg(asm_arm_t *as, uint rd, uint rn, uint rm);
 void asm_arm_eor_reg_reg_reg(asm_arm_t *as, uint rd, uint rn, uint rm);
 void asm_arm_orr_reg_reg_reg(asm_arm_t *as, uint rd, uint rn, uint rm);
 void asm_arm_mov_reg_local_addr(asm_arm_t *as, uint rd, int local_num);
+void asm_arm_mov_reg_pcrel(asm_arm_t *as, uint reg_dest, uint label);
 void asm_arm_lsl_reg_reg(asm_arm_t *as, uint rd, uint rs);
 void asm_arm_asr_reg_reg(asm_arm_t *as, uint rd, uint rs);
 
@@ -121,6 +122,7 @@ void asm_arm_pop(asm_arm_t *as, uint reglist);
 void asm_arm_bcc_label(asm_arm_t *as, int cond, uint label);
 void asm_arm_b_label(asm_arm_t *as, uint label);
 void asm_arm_bl_ind(asm_arm_t *as, void *fun_ptr, uint fun_id, uint reg_temp);
+void asm_arm_bx_reg(asm_arm_t *as, uint reg_src);
 
 #if GENERIC_ASM_API
 
@@ -150,12 +152,12 @@ void asm_arm_bl_ind(asm_arm_t *as, void *fun_ptr, uint fun_id, uint reg_temp);
 #define ASM_EXIT            asm_arm_exit
 
 #define ASM_JUMP            asm_arm_b_label
-#define ASM_JUMP_IF_REG_ZERO(as, reg, label) \
+#define ASM_JUMP_IF_REG_ZERO(as, reg, label, bool_test) \
     do { \
         asm_arm_cmp_reg_i8(as, reg, 0); \
         asm_arm_bcc_label(as, ASM_ARM_CC_EQ, label); \
     } while (0)
-#define ASM_JUMP_IF_REG_NONZERO(as, reg, label) \
+#define ASM_JUMP_IF_REG_NONZERO(as, reg, label, bool_test) \
     do { \
         asm_arm_cmp_reg_i8(as, reg, 0); \
         asm_arm_bcc_label(as, ASM_ARM_CC_NE, label); \
@@ -165,19 +167,16 @@ void asm_arm_bl_ind(asm_arm_t *as, void *fun_ptr, uint fun_id, uint reg_temp);
         asm_arm_cmp_reg_reg(as, reg1, reg2); \
         asm_arm_bcc_label(as, ASM_ARM_CC_EQ, label); \
     } while (0)
+#define ASM_JUMP_REG(as, reg) asm_arm_bx_reg((as), (reg))
 #define ASM_CALL_IND(as, ptr, idx) asm_arm_bl_ind(as, ptr, idx, ASM_ARM_REG_R3)
 
-#define ASM_MOV_REG_TO_LOCAL(as, reg, local_num) asm_arm_mov_local_reg(as, (local_num), (reg))
-#define ASM_MOV_IMM_TO_REG(as, imm, reg) asm_arm_mov_reg_i32(as, (reg), (imm))
-#define ASM_MOV_ALIGNED_IMM_TO_REG(as, imm, reg) asm_arm_mov_reg_i32(as, (reg), (imm))
-#define ASM_MOV_IMM_TO_LOCAL_USING(as, imm, local_num, reg_temp) \
-    do { \
-        asm_arm_mov_reg_i32(as, (reg_temp), (imm)); \
-        asm_arm_mov_local_reg(as, (local_num), (reg_temp)); \
-    } while (false)
-#define ASM_MOV_LOCAL_TO_REG(as, local_num, reg) asm_arm_mov_reg_local(as, (reg), (local_num))
+#define ASM_MOV_LOCAL_REG(as, local_num, reg_src) asm_arm_mov_local_reg((as), (local_num), (reg_src))
+#define ASM_MOV_REG_IMM(as, reg_dest, imm) asm_arm_mov_reg_i32((as), (reg_dest), (imm))
+#define ASM_MOV_REG_ALIGNED_IMM(as, reg_dest, imm) asm_arm_mov_reg_i32((as), (reg_dest), (imm))
+#define ASM_MOV_REG_LOCAL(as, reg_dest, local_num) asm_arm_mov_reg_local((as), (reg_dest), (local_num))
 #define ASM_MOV_REG_REG(as, reg_dest, reg_src) asm_arm_mov_reg_reg((as), (reg_dest), (reg_src))
-#define ASM_MOV_LOCAL_ADDR_TO_REG(as, local_num, reg) asm_arm_mov_reg_local_addr(as, (reg), (local_num))
+#define ASM_MOV_REG_LOCAL_ADDR(as, reg_dest, local_num) asm_arm_mov_reg_local_addr((as), (reg_dest), (local_num))
+#define ASM_MOV_REG_PCREL(as, reg_dest, label) asm_arm_mov_reg_pcrel((as), (reg_dest), (label))
 
 #define ASM_LSL_REG_REG(as, reg_dest, reg_shift) asm_arm_lsl_reg_reg((as), (reg_dest), (reg_shift))
 #define ASM_ASR_REG_REG(as, reg_dest, reg_shift) asm_arm_asr_reg_reg((as), (reg_dest), (reg_shift))
@@ -202,4 +201,4 @@ void asm_arm_bl_ind(asm_arm_t *as, void *fun_ptr, uint fun_id, uint reg_temp);
 
 #endif // GENERIC_ASM_API
 
-#endif // __MICROPY_INCLUDED_PY_ASMARM_H__
+#endif // MICROPY_INCLUDED_PY_ASMARM_H

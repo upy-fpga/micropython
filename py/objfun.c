@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -28,15 +28,13 @@
 #include <string.h>
 #include <assert.h>
 
-#include "py/nlr.h"
 #include "py/objtuple.h"
 #include "py/objfun.h"
-#include "py/runtime0.h"
 #include "py/runtime.h"
 #include "py/bc.h"
 #include "py/stackctrl.h"
 
-#if 0 // print debugging info
+#if MICROPY_DEBUG_VERBOSE // print debugging info
 #define DEBUG_PRINT (1)
 #else // don't print debugging info
 #define DEBUG_PRINT (0)
@@ -141,11 +139,11 @@ const mp_obj_type_t mp_type_fun_builtin_var = {
 /* byte code functions                                                        */
 
 qstr mp_obj_code_get_name(const byte *code_info) {
-    mp_decode_uint(&code_info); // skip code_info_size entry
+    code_info = mp_decode_uint_skip(code_info); // skip code_info_size entry
     #if MICROPY_PERSISTENT_CODE
     return code_info[0] | (code_info[1] << 8);
     #else
-    return mp_decode_uint(&code_info);
+    return mp_decode_uint_value(code_info);
     #endif
 }
 
@@ -163,8 +161,8 @@ qstr mp_obj_fun_get_name(mp_const_obj_t fun_in) {
     #endif
 
     const byte *bc = fun->bytecode;
-    mp_decode_uint(&bc); // skip n_state
-    mp_decode_uint(&bc); // skip n_exc_stack
+    bc = mp_decode_uint_skip(bc); // skip n_state
+    bc = mp_decode_uint_skip(bc); // skip n_exc_stack
     bc++; // skip scope_params
     bc++; // skip n_pos_args
     bc++; // skip n_kwonly_args
@@ -197,35 +195,54 @@ STATIC void dump_args(const mp_obj_t *a, size_t sz) {
 // than this will try to use the heap, with fallback to stack allocation.
 #define VM_MAX_STATE_ON_STACK (11 * sizeof(mp_uint_t))
 
-// Set this to enable a simple stack overflow check.
+// Set this to 1 to enable a simple stack overflow check.
 #define VM_DETECT_STACK_OVERFLOW (0)
+
+#define DECODE_CODESTATE_SIZE(bytecode, n_state_out_var, state_size_out_var) \
+    { \
+        /* bytecode prelude: state size and exception stack size */               \
+        n_state_out_var = mp_decode_uint_value(bytecode);                         \
+        size_t n_exc_stack = mp_decode_uint_value(mp_decode_uint_skip(bytecode)); \
+                                                                                  \
+        n_state_out_var += VM_DETECT_STACK_OVERFLOW;                              \
+                                                                                  \
+        /* state size in bytes */                                                 \
+        state_size_out_var = n_state_out_var * sizeof(mp_obj_t)                   \
+                           + n_exc_stack * sizeof(mp_exc_stack_t);                \
+    }
+
+#define INIT_CODESTATE(code_state, _fun_bc, n_args, n_kw, args) \
+    code_state->fun_bc = _fun_bc; \
+    code_state->ip = 0; \
+    mp_setup_code_state(code_state, n_args, n_kw, args); \
+    code_state->old_globals = mp_globals_get();
 
 #if MICROPY_STACKLESS
 mp_code_state_t *mp_obj_fun_bc_prepare_codestate(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     MP_STACK_CHECK();
     mp_obj_fun_bc_t *self = MP_OBJ_TO_PTR(self_in);
 
-    // get start of bytecode
-    const byte *ip = self->bytecode;
+    size_t n_state, state_size;
+    DECODE_CODESTATE_SIZE(self->bytecode, n_state, state_size);
 
-    // bytecode prelude: state size and exception stack size
-    size_t n_state = mp_decode_uint(&ip);
-    size_t n_exc_stack = mp_decode_uint(&ip);
-
-    // allocate state for locals and stack
-    size_t state_size = n_state * sizeof(mp_obj_t) + n_exc_stack * sizeof(mp_exc_stack_t);
     mp_code_state_t *code_state;
+    #if MICROPY_ENABLE_PYSTACK
+    code_state = mp_pystack_alloc(sizeof(mp_code_state_t) + state_size);
+    #else
+    // If we use m_new_obj_var(), then on no memory, MemoryError will be
+    // raised. But this is not correct exception for a function call,
+    // RuntimeError should be raised instead. So, we use m_new_obj_var_maybe(),
+    // return NULL, then vm.c takes the needed action (either raise
+    // RuntimeError or fallback to stack allocation).
     code_state = m_new_obj_var_maybe(mp_code_state_t, byte, state_size);
     if (!code_state) {
         return NULL;
     }
+    #endif
 
-    code_state->ip = (byte*)(ip - self->bytecode); // offset to after n_state/n_exc_stack
-    code_state->n_state = n_state;
-    mp_setup_code_state(code_state, self, n_args, n_kw, args);
+    INIT_CODESTATE(code_state, self, n_args, n_kw, args);
 
     // execute the byte code with the correct globals context
-    code_state->old_globals = mp_globals_get();
     mp_globals_set(self->globals);
 
     return code_state;
@@ -240,23 +257,17 @@ STATIC mp_obj_t fun_bc_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const 
     dump_args(args, n_args);
     DEBUG_printf("Input kw args: ");
     dump_args(args + n_args, n_kw * 2);
+
     mp_obj_fun_bc_t *self = MP_OBJ_TO_PTR(self_in);
-    DEBUG_printf("Func n_def_args: %d\n", self->n_def_args);
 
-    // get start of bytecode
-    const byte *ip = self->bytecode;
-
-    // bytecode prelude: state size and exception stack size
-    size_t n_state = mp_decode_uint(&ip);
-    size_t n_exc_stack = mp_decode_uint(&ip);
-
-#if VM_DETECT_STACK_OVERFLOW
-    n_state += 1;
-#endif
+    size_t n_state, state_size;
+    DECODE_CODESTATE_SIZE(self->bytecode, n_state, state_size);
 
     // allocate state for locals and stack
-    size_t state_size = n_state * sizeof(mp_obj_t) + n_exc_stack * sizeof(mp_exc_stack_t);
     mp_code_state_t *code_state = NULL;
+    #if MICROPY_ENABLE_PYSTACK
+    code_state = mp_pystack_alloc(sizeof(mp_code_state_t) + state_size);
+    #else
     if (state_size > VM_MAX_STATE_ON_STACK) {
         code_state = m_new_obj_var_maybe(mp_code_state_t, byte, state_size);
     }
@@ -264,13 +275,11 @@ STATIC mp_obj_t fun_bc_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const 
         code_state = alloca(sizeof(mp_code_state_t) + state_size);
         state_size = 0; // indicate that we allocated using alloca
     }
+    #endif
 
-    code_state->ip = (byte*)(ip - self->bytecode); // offset to after n_state/n_exc_stack
-    code_state->n_state = n_state;
-    mp_setup_code_state(code_state, self, n_args, n_kw, args);
+    INIT_CODESTATE(code_state, self, n_args, n_kw, args);
 
     // execute the byte code with the correct globals context
-    code_state->old_globals = mp_globals_get();
     mp_globals_set(self->globals);
     mp_vm_return_kind_t vm_return_kind = mp_execute_bytecode(code_state, MP_OBJ_NULL);
     mp_globals_set(code_state->old_globals);
@@ -312,10 +321,14 @@ STATIC mp_obj_t fun_bc_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const 
         result = code_state->state[n_state - 1];
     }
 
+    #if MICROPY_ENABLE_PYSTACK
+    mp_pystack_free(code_state);
+    #else
     // free the state if it was allocated on the heap
     if (state_size != 0) {
         m_del_var(mp_code_state_t, byte, state_size, code_state);
     }
+    #endif
 
     if (vm_return_kind == MP_VM_RETURN_NORMAL) {
         return result;
@@ -325,7 +338,7 @@ STATIC mp_obj_t fun_bc_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const 
 }
 
 #if MICROPY_PY_FUNCTION_ATTRS
-STATIC void fun_bc_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+void mp_obj_fun_bc_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
     if (dest[0] != MP_OBJ_NULL) {
         // not load attribute
         return;
@@ -345,7 +358,7 @@ const mp_obj_type_t mp_type_fun_bc = {
     .call = fun_bc_call,
     .unary_op = mp_generic_unary_op,
 #if MICROPY_PY_FUNCTION_ATTRS
-    .attr = fun_bc_attr,
+    .attr = mp_obj_fun_bc_attr,
 #endif
 };
 
@@ -486,7 +499,7 @@ typedef mp_uint_t (*inline_asm_fun_2_t)(mp_uint_t, mp_uint_t);
 typedef mp_uint_t (*inline_asm_fun_3_t)(mp_uint_t, mp_uint_t, mp_uint_t);
 typedef mp_uint_t (*inline_asm_fun_4_t)(mp_uint_t, mp_uint_t, mp_uint_t, mp_uint_t);
 
-// convert a Micro Python object to a sensible value for inline asm
+// convert a MicroPython object to a sensible value for inline asm
 STATIC mp_uint_t convert_obj_for_inline_asm(mp_obj_t obj) {
     // TODO for byte_array, pass pointer to the array
     if (MP_OBJ_IS_SMALL_INT(obj)) {
@@ -501,7 +514,7 @@ STATIC mp_uint_t convert_obj_for_inline_asm(mp_obj_t obj) {
         return mp_obj_int_get_truncated(obj);
     } else if (MP_OBJ_IS_STR(obj)) {
         // pointer to the string (it's probably constant though!)
-        mp_uint_t l;
+        size_t l;
         return (mp_uint_t)mp_obj_str_get_data(obj, &l);
     } else {
         mp_obj_type_t *type = mp_obj_get_type(obj);
@@ -513,7 +526,7 @@ STATIC mp_uint_t convert_obj_for_inline_asm(mp_obj_t obj) {
 #endif
         } else if (type == &mp_type_tuple || type == &mp_type_list) {
             // pointer to start of tuple (could pass length, but then could use len(x) for that)
-            mp_uint_t len;
+            size_t len;
             mp_obj_t *items;
             mp_obj_get_array(obj, &len, &items);
             return (mp_uint_t)items;

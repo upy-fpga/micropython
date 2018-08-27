@@ -1,5 +1,5 @@
 /*
- * This file is part of the Micro Python project, http://micropython.org/
+ * This file is part of the MicroPython project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
@@ -28,13 +28,12 @@
 #include <string.h>
 #include <assert.h>
 
-#include "py/nlr.h"
-#include "py/runtime0.h"
 #include "py/runtime.h"
+#include "py/smallint.h"
 #include "py/emitglue.h"
 #include "py/bc.h"
 
-#if 0 // print debugging info
+#if MICROPY_DEBUG_VERBOSE // print debugging info
 #define DEBUG_printf DEBUG_printf
 #else // don't print debugging info
 #define DEBUG_printf(...) (void)0
@@ -42,7 +41,7 @@
 
 #if MICROPY_EMIT_NATIVE
 
-// convert a Micro Python object to a valid native value based on type
+// convert a MicroPython object to a valid native value based on type
 mp_uint_t mp_convert_obj_to_native(mp_obj_t obj, mp_uint_t type) {
     DEBUG_printf("mp_convert_obj_to_native(%p, " UINT_FMT ")\n", obj, type);
     switch (type & 0xf) {
@@ -66,7 +65,7 @@ mp_uint_t mp_convert_obj_to_native(mp_obj_t obj, mp_uint_t type) {
 
 #if MICROPY_EMIT_NATIVE || MICROPY_EMIT_INLINE_ASM
 
-// convert a native value to a Micro Python object based on type
+// convert a native value to a MicroPython object based on type
 mp_obj_t mp_convert_native_to_obj(mp_uint_t val, mp_uint_t type) {
     DEBUG_printf("mp_convert_native_to_obj(" UINT_FMT ", " UINT_FMT ")\n", val, type);
     switch (type & 0xf) {
@@ -133,6 +132,7 @@ void *const mp_fun_table[MP_F_NUMBER_OF] = {
     mp_load_build_class,
     mp_load_attr,
     mp_load_method,
+    mp_load_super_method,
     mp_store_name,
     mp_store_global,
     mp_store_attr,
@@ -146,8 +146,8 @@ void *const mp_fun_table[MP_F_NUMBER_OF] = {
     mp_obj_new_dict,
     mp_obj_dict_store,
 #if MICROPY_PY_BUILTINS_SET
-    mp_obj_new_set,
     mp_obj_set_store,
+    mp_obj_new_set,
 #endif
     mp_make_function_from_raw_code,
     mp_native_call_function_n_kw,
@@ -171,6 +171,8 @@ void *const mp_fun_table[MP_F_NUMBER_OF] = {
     mp_obj_new_cell,
     mp_make_closure_from_raw_code,
     mp_setup_code_state,
+    mp_small_int_floor_divide,
+    mp_small_int_modulo,
 };
 
 /*

@@ -4,9 +4,14 @@
 try:
     print(pow(3, 4, 7))
 except NotImplementedError:
-    import sys
     print("SKIP")
-    sys.exit()
+    raise SystemExit
+
+# test some edge cases
+print(pow(1, 1, 1))
+print(pow(0, 1, 1))
+print(pow(1, 0, 1))
+print(pow(1, 0, 2))
 
 # 3 arg pow is defined to only work on integers
 try:

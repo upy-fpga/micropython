@@ -26,12 +26,10 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+#include <errno.h> // for declaration of global errno variable
 #include <fcntl.h>
 
-#include "py/nlr.h"
 #include "py/runtime.h"
-#include "py/runtime0.h"
 #include "py/stream.h"
 
 #if MICROPY_PY_BTREE
@@ -97,12 +95,8 @@ STATIC mp_obj_t btree_put(size_t n_args, const mp_obj_t *args) {
     (void)n_args;
     mp_obj_btree_t *self = MP_OBJ_TO_PTR(args[0]);
     DBT key, val;
-    // Different ports may have different type sizes
-    mp_uint_t v;
-    key.data = (void*)mp_obj_str_get_data(args[1], &v);
-    key.size = v;
-    val.data = (void*)mp_obj_str_get_data(args[2], &v);
-    val.size = v;
+    key.data = (void*)mp_obj_str_get_data(args[1], &key.size);
+    val.data = (void*)mp_obj_str_get_data(args[2], &val.size);
     return MP_OBJ_NEW_SMALL_INT(__bt_put(self->db, &key, &val, 0));
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(btree_put_obj, 3, 4, btree_put);
@@ -110,10 +104,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(btree_put_obj, 3, 4, btree_put);
 STATIC mp_obj_t btree_get(size_t n_args, const mp_obj_t *args) {
     mp_obj_btree_t *self = MP_OBJ_TO_PTR(args[0]);
     DBT key, val;
-    // Different ports may have different type sizes
-    mp_uint_t v;
-    key.data = (void*)mp_obj_str_get_data(args[1], &v);
-    key.size = v;
+    key.data = (void*)mp_obj_str_get_data(args[1], &key.size);
     int res = __bt_get(self->db, &key, &val, 0);
     if (res == RET_SPECIAL) {
         if (n_args > 2) {
@@ -132,10 +123,7 @@ STATIC mp_obj_t btree_seq(size_t n_args, const mp_obj_t *args) {
     int flags = MP_OBJ_SMALL_INT_VALUE(args[1]);
     DBT key, val;
     if (n_args > 2) {
-        // Different ports may have different type sizes
-        mp_uint_t v;
-        key.data = (void*)mp_obj_str_get_data(args[2], &v);
-        key.size = v;
+        key.data = (void*)mp_obj_str_get_data(args[2], &key.size);
     }
 
     int res = __bt_seq(self->db, &key, &val, flags);
@@ -206,14 +194,11 @@ STATIC mp_obj_t btree_iternext(mp_obj_t self_in) {
     mp_obj_btree_t *self = MP_OBJ_TO_PTR(self_in);
     DBT key, val;
     int res;
-    // Different ports may have different type sizes
-    mp_uint_t v;
     bool desc = self->flags & FLAG_DESC;
     if (self->start_key != MP_OBJ_NULL) {
         int flags = R_FIRST;
         if (self->start_key != mp_const_none) {
-            key.data = (void*)mp_obj_str_get_data(self->start_key, &v);
-            key.size = v;
+            key.data = (void*)mp_obj_str_get_data(self->start_key, &key.size);
             flags = R_CURSOR;
         } else if (desc) {
             flags = R_LAST;
@@ -231,8 +216,7 @@ STATIC mp_obj_t btree_iternext(mp_obj_t self_in) {
 
     if (self->end_key != mp_const_none) {
         DBT end_key;
-        end_key.data = (void*)mp_obj_str_get_data(self->end_key, &v);
-        end_key.size = v;
+        end_key.data = (void*)mp_obj_str_get_data(self->end_key, &end_key.size);
         BTREE *t = self->db->internal;
         int cmp = t->bt_cmp(&key, &end_key);
         if (desc) {
@@ -264,13 +248,10 @@ STATIC mp_obj_t btree_iternext(mp_obj_t self_in) {
 
 STATIC mp_obj_t btree_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
     mp_obj_btree_t *self = MP_OBJ_TO_PTR(self_in);
-    // Different ports may have different type sizes
-    mp_uint_t v;
     if (value == MP_OBJ_NULL) {
         // delete
         DBT key;
-        key.data = (void*)mp_obj_str_get_data(index, &v);
-        key.size = v;
+        key.data = (void*)mp_obj_str_get_data(index, &key.size);
         int res = __bt_delete(self->db, &key, 0);
         if (res == RET_SPECIAL) {
             nlr_raise(mp_obj_new_exception(&mp_type_KeyError));
@@ -280,8 +261,7 @@ STATIC mp_obj_t btree_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
     } else if (value == MP_OBJ_SENTINEL) {
         // load
         DBT key, val;
-        key.data = (void*)mp_obj_str_get_data(index, &v);
-        key.size = v;
+        key.data = (void*)mp_obj_str_get_data(index, &key.size);
         int res = __bt_get(self->db, &key, &val, 0);
         if (res == RET_SPECIAL) {
             nlr_raise(mp_obj_new_exception(&mp_type_KeyError));
@@ -291,24 +271,20 @@ STATIC mp_obj_t btree_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
     } else {
         // store
         DBT key, val;
-        key.data = (void*)mp_obj_str_get_data(index, &v);
-        key.size = v;
-        val.data = (void*)mp_obj_str_get_data(value, &v);
-        val.size = v;
+        key.data = (void*)mp_obj_str_get_data(index, &key.size);
+        val.data = (void*)mp_obj_str_get_data(value, &val.size);
         int res = __bt_put(self->db, &key, &val, 0);
         CHECK_ERROR(res);
         return mp_const_none;
     }
 }
 
-STATIC mp_obj_t btree_binary_op(mp_uint_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
+STATIC mp_obj_t btree_binary_op(mp_binary_op_t op, mp_obj_t lhs_in, mp_obj_t rhs_in) {
     mp_obj_btree_t *self = MP_OBJ_TO_PTR(lhs_in);
     switch (op) {
-        case MP_BINARY_OP_IN: {
-            mp_uint_t v;
+        case MP_BINARY_OP_CONTAINS: {
             DBT key, val;
-            key.data = (void*)mp_obj_str_get_data(rhs_in, &v);
-            key.size = v;
+            key.data = (void*)mp_obj_str_get_data(rhs_in, &key.size);
             int res = __bt_get(self->db, &key, &val, 0);
             CHECK_ERROR(res);
             return mp_obj_new_bool(res != RET_SPECIAL);
@@ -376,7 +352,7 @@ STATIC mp_obj_t mod_btree_open(size_t n_args, const mp_obj_t *pos_args, mp_map_t
     openinfo.psize = args.pagesize.u_int;
     openinfo.minkeypage = args.minkeypage.u_int;
 
-    DB *db = __bt_open(pos_args[0], &btree_stream_fvtable, &openinfo, /*dflags*/0);
+    DB *db = __bt_open(MP_OBJ_TO_PTR(pos_args[0]), &btree_stream_fvtable, &openinfo, /*dflags*/0);
     if (db == NULL) {
         mp_raise_OSError(errno);
     }
