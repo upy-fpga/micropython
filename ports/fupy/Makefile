@@ -22,19 +22,19 @@ $(error $(ERROR_MSG))
 endif # no generated/variables.mak
 include $(BUILDINC_DIRECTORY)/generated/variables.mak
 
-include ../py/mkenv.mk
+include ../../py/mkenv.mk
 
 # qstr definitions (must come before including py.mk)
 QSTR_DEFS = qstrdefsport.h
 
 # include py core make definitions
-include ../py/py.mk
+include ../../py/py.mk
 
 CROSS_COMPILE ?= $(TRIPLE)-
 
 INC += -I.
-INC += -I..
-INC += -I../lib/mp-readline
+INC += -I../..
+INC += -I../../lib/mp-readline
 INC += -I$(BUILD)
 INC += -I$(BUILDINC_DIRECTORY)
 
@@ -101,4 +101,4 @@ run:
 test: $(BUILD)/firmware.elf
 	$(Q)/bin/echo -e "print('hello world!', list(x+1 for x in range(10)), end='eol\\\\n')\\r\\n\\x04" | $(BUILD)/firmware.elf | tail -n2 | grep "^hello world! \\[1, 2, 3, 4, 5, 6, 7, 8, 9, 10\\]eol"
 
-include ../py/mkrules.mk
+include ../../py/mkrules.mk
