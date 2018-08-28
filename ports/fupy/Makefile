@@ -38,6 +38,9 @@ INC += -I../../lib/mp-readline
 INC += -I$(BUILD)
 INC += -I$(BUILDINC_DIRECTORY)
 
+# Ensure assembler can also found our custom include files, for crt0
+ASFLAGS += -I$(BUILDINC_DIRECTORY)
+
 CFLAGS += $(CPUFLAGS)
 CFLAGS += $(INC) -Wall -Werror -std=gnu11 -ggdb $(COPT)
 CFLAGS += -Og -Wdouble-promotion -Wall -Werror
