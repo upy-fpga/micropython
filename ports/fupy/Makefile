@@ -46,9 +46,9 @@ ifneq ($(DEBUG), 1)
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref 
 LDFLAGS += -L$(BUILDINC_DIRECTORY)
-LIBS = -Wl,-lc
+LIBS = -Wl,-lc -Wl,-lm
 
 SRC_C = \
 	main.c \
