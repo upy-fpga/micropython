@@ -46,7 +46,12 @@ ifneq ($(DEBUG), 1)
 CFLAGS += -DNDEBUG
 endif
 
-LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref 
+ifeq ($(COPY_TO_MAIN_RAM), 1)
+LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref
+else
+LDFLAGS += -T litex-flash.ld -Wl,-Map=$@.map -Wl,--cref
+endif
+
 LDFLAGS += -L$(BUILDINC_DIRECTORY)
 LIBS = -Wl,-lc -Wl,-lm
 
@@ -65,7 +70,11 @@ SRC_C = \
 
 # FIXME: Should use crt0 from newlib? However it seems to cause memory access
 # at 0x0
+ifeq ($(COPY_TO_MAIN_RAM), 1)
 SRC_S = crt0-$(CPU).S
+else
+SRC_S = crt0-$(CPU)-flash.S
+endif
 
 OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 
@@ -76,6 +85,12 @@ SRC_QSTR += $(SRC_C) $(SRC_LIB)
 
 $(BUILD)/crt0-$(CPU).S: $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
 	cp $< $@
+
+# Flash crt0 override for normal assembler rule- needed to distinguish
+# whether we need to assemble a crt0 that copies a data section to RAM from
+# flash, or a crt0 that assumes a bootloader does it ahead of time.
+$(BUILD)/crt0-$(CPU)-flash.o: $(BUILD)/crt0-$(CPU).S
+	$(CC) -c -DFLASH_DATA_SECTION $(CFLAGS) -o $@ $<
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
