@@ -70,27 +70,34 @@ SRC_C = \
 
 # FIXME: Should use crt0 from newlib? However it seems to cause memory access
 # at 0x0
+
 ifeq ($(COPY_TO_MAIN_RAM), 1)
-SRC_S = crt0-$(CPU).S
+CRT0_S ?= $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
+CRT0_O = $(BUILD)/crt0-$(CPU)-ctr.o
+CRT0FLAGS = ""
+else ifeq ($(EXECUTE_IN_PLACE), 1)
+CRT0_S ?= $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
+CRT0_O = $(BUILD)/crt0-$(CPU)-xip.o
+CRT0FLAGS = -DEXECUTE_IN_PLACE
 else
-SRC_S = crt0-$(CPU)-flash.S
+$(error You need to define one of COPY_TO_MAIN_RAM or EXECUTE_IN_PLACE to 1)
 endif
 
-OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
+# No extra assembly files for now.
+SRC_S = ""
+
+OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o)) $(CRT0_O)
 
 all: $(BUILD)/firmware.bin
 
 # List of sources for qstr extraction
 SRC_QSTR += $(SRC_C) $(SRC_LIB)
 
-$(BUILD)/crt0-$(CPU).S: $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
-	cp $< $@
-
-# Flash crt0 override for normal assembler rule- needed to distinguish
+# crt0 override for normal assembler rule- needed to distinguish
 # whether we need to assemble a crt0 that copies a data section to RAM from
 # flash, or a crt0 that assumes a bootloader does it ahead of time.
-$(BUILD)/crt0-$(CPU)-flash.o: $(BUILD)/crt0-$(CPU).S
-	$(CC) -c -DFLASH_DATA_SECTION $(CFLAGS) -o $@ $<
+$(CRT0_O): $(CRT0_S)
+	$(CC) -c $(CFLAGS) $(CRT0FLAGS) -o $@ $<
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
