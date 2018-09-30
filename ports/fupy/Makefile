@@ -84,9 +84,9 @@ $(error You need to define one of COPY_TO_MAIN_RAM or EXECUTE_IN_PLACE to 1)
 endif
 
 # No extra assembly files for now.
-SRC_S = 
+SRC_S =
 
-OBJ = $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o)) $(CRT0_O)
+OBJ =  $(CRT0_O) $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 
 all: $(BUILD)/firmware.bin
 
