@@ -6,7 +6,7 @@
 
 #include "generated/csr.h"
 
-#ifndef CSR_CAS_BASE
+#if !defined(CSR_CAS_BASE) || !defined(CSR_CAS_SWITCHES_IN_ADDR)
 static inline unsigned char cas_switches_in_read(void) {
     return 0;
 }
