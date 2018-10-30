@@ -78,7 +78,7 @@ SRC_C = \
 ifeq ($(COPY_TO_MAIN_RAM), 1)
 CRT0_S ?= $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
 CRT0_O = $(BUILD)/crt0-$(CPU)-ctr.o
-CRT0FLAGS = ""
+CRT0FLAGS =
 else ifeq ($(EXECUTE_IN_PLACE), 1)
 CRT0_S ?= $(LIBBASE_DIRECTORY)/crt0-$(CPU).S
 CRT0_O = $(BUILD)/crt0-$(CPU)-xip.o
