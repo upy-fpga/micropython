@@ -50,9 +50,9 @@ CFLAGS += -DNDEBUG
 endif
 
 ifeq ($(COPY_TO_MAIN_RAM), 1)
-LDFLAGS += -T litex.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -nostartfiles -T litex.ld -Wl,-Map=$@.map -Wl,--cref
 else
-LDFLAGS += -T litex-flash.ld -Wl,-Map=$@.map -Wl,--cref
+LDFLAGS += -nostartfiles -T litex-flash.ld -Wl,-Map=$@.map -Wl,--cref
 endif
 
 LDFLAGS += -L$(BUILDINC_DIRECTORY)
@@ -87,6 +87,16 @@ else
 $(error You need to define one of COPY_TO_MAIN_RAM or EXECUTE_IN_PLACE to 1)
 endif
 
+# CPU-specific overrides.
+ifeq ($(CPU), picorv32)
+# Extract the arch-specific flags, otherwise firmware won't link.
+LDFLAGS += $(filter -march=% -mabi=%, $(CPUFLAGS))
+# picorv32 needs a special assembly include to compile crt0.
+ASFLAGS += -I$(SOC_DIRECTORY)/software/include/base
+else ifeq ($(CPU), vexriscv)
+LDFLAGS += $(filter -march=% -mabi=%, $(CPUFLAGS))
+endif
+
 # No extra assembly files for now.
 SRC_S =
 
@@ -101,7 +111,7 @@ SRC_QSTR += $(SRC_C) $(SRC_LIB)
 # whether we need to assemble a crt0 that copies a data section to RAM from
 # flash, or a crt0 that assumes a bootloader does it ahead of time.
 $(CRT0_O): $(CRT0_S)
-	$(CC) -c $(CFLAGS) $(CRT0FLAGS) -o $@ $<
+	$(CC) -c $(ASFLAGS) $(CFLAGS) $(CRT0FLAGS) -o $@ $<
 
 $(BUILD)/_frozen_mpy.c: frozentest.mpy $(BUILD)/genhdr/qstrdefs.generated.h
 	$(ECHO) "MISC freezing bytecode"
