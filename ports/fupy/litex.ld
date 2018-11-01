@@ -33,6 +33,7 @@ SECTIONS
 		*(.data1)
 		_gp = ALIGN(16);
 		*(.sdata .sdata.* .gnu.linkonce.s.*)
+		*(.srodata .srodata.*)
 		_edata = .;
 	} > main_ram
 

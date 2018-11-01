@@ -27,6 +27,9 @@ SECTIONS
 		_frodata = .;
 		*(.rodata .rodata.* .gnu.linkonce.r.*)
 		*(.rodata1)
+		/* On RISCV, normally placed near _gp. Keeping RAM footprint low
+		is higher priority than speed here. */
+		*(.srodata .srodata.*)
 		_erodata = .;
 	} > user_flash
 
