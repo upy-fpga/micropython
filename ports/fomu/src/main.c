@@ -33,9 +33,6 @@ void do_str(const char *src, mp_parse_input_kind_t input_kind) {
 #endif
 
 static char *stack_top;
-#if MICROPY_ENABLE_GC
-static uint32_t heap[512];
-#endif
 
 __attribute__((section(".ramtext")))
 void isr(void) {
@@ -54,14 +51,24 @@ static void fomu_init(void) {
     time_init();
     rgb_init();
     usb_connect();
+    while (!usb_can_putc())
+        usb_poll();
 }
 
 static void python_main(void) {
     int stack_dummy;
+    extern uint32_t _heap_start;
     stack_top = (char*)&stack_dummy;
 
     #if MICROPY_ENABLE_GC
-    gc_init(heap, ((uint32_t)heap) + sizeof(heap));
+    {
+        uint32_t *start_ptr = (uint32_t *)&_heap_start;
+        uint32_t *end_ptr = (uint32_t *)(((uint32_t)start_ptr) + 65536);
+        while (start_ptr < end_ptr) {
+            *start_ptr++ = 0;
+        }
+    }
+    gc_init((char*)&_heap_start , (char*)(&_heap_start) + 65536);
     #endif
     mp_init();
     #if MICROPY_ENABLE_COMPILER
@@ -82,7 +89,6 @@ static void python_main(void) {
     pyexec_frozen_module("frozentest.py");
     #endif
     mp_deinit();
-    return 0;
 }
 
 void main(void) {
@@ -102,20 +108,25 @@ void gc_collect(void) {
     // pointers from CPU registers, and thus may function incorrectly.
     void *dummy;
     gc_collect_start();
-    // gc_collect_root(&dummy, ((mp_uint_t)stack_top - (mp_uint_t)&dummy) / sizeof(mp_uint_t));
+    gc_collect_root(&dummy, ((mp_uint_t)stack_top - (mp_uint_t)&dummy) / sizeof(mp_uint_t));
     gc_collect_end();
     gc_dump_info();
 }
 
 mp_lexer_t *mp_lexer_new_from_file(const char *filename) {
+    (void)filename;
     mp_raise_OSError(MP_ENOENT);
 }
 
 mp_import_stat_t mp_import_stat(const char *path) {
+    (void)path;
     return MP_IMPORT_STAT_NO_EXIST;
 }
 
 mp_obj_t mp_builtin_open(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
+    (void)n_args;
+    (void)args;
+    (void)kwargs;
     return mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_KW(mp_builtin_open_obj, 1, mp_builtin_open);

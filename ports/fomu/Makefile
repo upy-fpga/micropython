@@ -9,7 +9,7 @@ QSTR_DEFS = include/qstrdefsport.h
 # include py core make definitions
 include $(TOP)/py/py.mk
 
-LDSCRIPT := ld/fomu-ram.ld
+LDSCRIPT := ld/fomu-spi.ld
 
 # There is no 64-bit gcc on Raspberry Pi, so use the 32-bit version
 ifneq (,$(wildcard /etc/rpi-issue))
@@ -36,16 +36,14 @@ CFLAGS := $(INC) \
 			-fdata-sections -ffunction-sections \
 			-march=rv32i \
 			-DGIT_VERSION=u\"$(GIT_VERSION)\" -std=gnu11 \
-			-D__vexriscv__ -march=rv32im  -mabi=ilp32 \
+			-D__vexriscv__ -march=rv32i  -mabi=ilp32 \
  			$(COPT)
 LDFLAGS := $(CFLAGS) \
 			-nostartfiles \
-			-nostdlib \
 			-Wl,--gc-sections \
 			-Wl,--no-warn-mismatch \
 			-Wl,--script=$(LDSCRIPT) \
 			-Wl,--build-id=none
-			#-nostdlib -T stm32f405.ld -Map=$@.map --cref --gc-sections
 
 # Tune for Debugging or Optimization
 ifeq ($(DEBUG), 1)
@@ -74,9 +72,6 @@ SRC_C = \
 
 SRC_S = \
 	src/crt0-vexriscv.S \
-	src/div.S \
-	src/mul.S \
-	src/setjmp.S \
 
 VPATH += src include
 

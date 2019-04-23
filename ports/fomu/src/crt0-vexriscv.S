@@ -8,10 +8,10 @@ _start:
   j crt_init
   # This sentinal ensures that this program is loaded
   # to RAM when loaded using dfu-util.
-  .word 0x17ab0f23
-  .word 0x10001000
+  #.word 0x17ab0f23
+  #.word 0x10001000
 
-.section .text
+.section .ramtext
 .global  trap_entry
 trap_entry:
   sw x1,  - 1*4(sp)
@@ -50,12 +50,13 @@ trap_entry:
   lw x31,  0*4(sp)
   addi sp,sp,16*4
   mret
-  .text
 
+.text
 
 crt_init:
   # Flush the caches
-  .word 0x400f
+  .word 0x0f400000
+  # .word 0x400f
   nop
   nop
   nop

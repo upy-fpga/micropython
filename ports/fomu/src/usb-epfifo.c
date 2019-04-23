@@ -242,6 +242,20 @@ void usb_putc(uint8_t c) {
     usb_ep_2_in_respond_write(EPF_ACK);
 }
 
+__attribute__((section(".ramtext")))
+int usb_write(const uint8_t *buf, int count) {
+    int to_write = 64;
+    int i;
+    if (to_write > count)
+        to_write = count;
+    for (i = 0; i < to_write; i++)
+        usb_ep_2_in_ibuf_head_write(buf[i]);
+    ep2_fifo_bytes += to_write;
+    usb_ep_2_in_respond_write(EPF_ACK);
+
+    return to_write;
+}
+
 extern volatile uint8_t terminal_is_connected;
 
 __attribute__((section(".ramtext")))

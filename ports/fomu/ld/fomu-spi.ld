@@ -7,9 +7,8 @@ ENTRY(_start)
 /* Specify the memory areas */
 MEMORY
 {
-    /*FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 0x100000*/ /* entire flash, 1 MiB */
-    /*CCMRAM (xrw)    : ORIGIN = 0x10000000, LENGTH = 0x010000*/ /* 64 KiB */
-    RAM (xrw)       : ORIGIN = 0x10001000, LENGTH = 0x00020000 - 8192 /* 128 KiB */
+    FLASH (rx)      : ORIGIN = 0x20040000, LENGTH = 0x100000 /* entire flash, 1 MiB */
+    RAM (xrw)       : ORIGIN = 0x10000000, LENGTH = 0x00020000 /* 128 KiB */
 }
 
 /* top end of the stack */
@@ -27,13 +26,13 @@ SECTIONS
         *(.text*)          /* .text* sections (code) */
         *(.rodata)         /* .rodata sections (constants, strings, etc.) */
         *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
-        *(.srodata)         /* .rodata sections (constants, strings, etc.) */
-        *(.srodata*) /* .rodata* sections (constants, strings, etc.) */
+        *(.srodata)        /* .rodata sections (constants, strings, etc.) */
+        *(.srodata*)       /* .rodata* sections (constants, strings, etc.) */
 
         . = ALIGN(4);
         _etext = .;        /* define a global symbol at end of code */
         _sidata = _etext;  /* This is used by the startup in order to initialize the .data secion */
-    } >RAM /*FLASH*/
+    } >FLASH
 
     /* This is the initialized data section
     The program executes knowing that the data is in the RAM
@@ -44,12 +43,12 @@ SECTIONS
         . = ALIGN(4);
         _sdata = .;        /* create a global symbol at data start; used by startup code in order to initialise the .data section in RAM */
 
-        *(.ramtext)          /* .text* sections (code) */
-        *(.ramtext*)          /* .text* sections (code) */
+        *(.ramtext)        /* .text* sections (code) */
+        *(.ramtext*)       /* .text* sections (code) */
         *(.data)           /* .data sections */
         *(.data*)          /* .data* sections */
-        *(.sdata)           /* .data sections */
-        *(.sdata*)          /* .data* sections */
+        *(.sdata)          /* .data sections */
+        *(.sdata*)         /* .data* sections */
 
         . = ALIGN(4);
         _edata = .;        /* define a global symbol at data end; used by startup code in order to initialise the .data section in RAM */
@@ -68,5 +67,13 @@ SECTIONS
 
         . = ALIGN(4);
         _ebss = .;         /* define a global symbol at bss end; used by startup code */
+    } >RAM
+
+
+    /* this is to define the start of the heap, and make sure we have a minimum size */
+    .heap :
+    {
+        . = ALIGN(4);
+        _heap_start = .;    /* define a global symbol at heap start */
     } >RAM
 }
