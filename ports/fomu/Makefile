@@ -97,7 +97,7 @@ $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 
 $(BUILD)/firmware.dfu: $(BUILD)/firmware.bin
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(DFU) -b 0x08000000:$(BUILD)/firmware.bin $@
+	$(Q)$(PYTHON) $(DFU) -b 0:$(BUILD)/firmware.bin $@
 
 deploy: $(BUILD)/firmware.dfu
 	$(ECHO) "Writing $< to the board"
