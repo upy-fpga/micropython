@@ -57,6 +57,8 @@ void usb_connect(void) {
 
     // Reject outgoing data, since we have none to give yet.
     usb_ep_0_in_respond_write(EPF_NAK);
+    usb_ep_1_in_respond_write(EPF_NAK);
+    usb_ep_2_in_respond_write(EPF_NAK);
 
     usb_pullup_out_write(1);
 
@@ -222,7 +224,7 @@ void usb_isr(void) {
         usb_rx_fifo_wr -= 2;
 
         usb_ep_2_out_ev_pending_write(ep_pending);
-        usb_ep_2_out_respond_write(EPF_ACK);
+        usb_ep_2_out_respond_write(EPF_NAK);
     }
 
     return;
@@ -230,20 +232,22 @@ void usb_isr(void) {
 
 __attribute__((section(".ramtext")))
 int usb_getc(void) {
-    if (usb_rx_fifo_rd == usb_rx_fifo_wr)
+    if (usb_rx_fifo_rd == usb_rx_fifo_wr) {
+        usb_ep_2_out_respond_write(EPF_ACK);
         return -1;
+    }
     return usb_rx_fifo[(usb_rx_fifo_rd++) & 0x3f];
 }
 
 __attribute__((section(".ramtext")))
-void usb_putc(uint8_t c) {
+void usb_putc(char c) {
     usb_ep_2_in_ibuf_head_write(c);
     ep2_fifo_bytes++;
     usb_ep_2_in_respond_write(EPF_ACK);
 }
 
 __attribute__((section(".ramtext")))
-int usb_write(const uint8_t *buf, int count) {
+int usb_write(const char *buf, int count) {
     int to_write = 64;
     int i;
     if (to_write > count)
@@ -260,7 +264,11 @@ extern volatile uint8_t terminal_is_connected;
 
 __attribute__((section(".ramtext")))
 int usb_can_getc(void) {
-    return terminal_is_connected && (usb_rx_fifo_rd != usb_rx_fifo_wr);
+    if (usb_rx_fifo_rd == usb_rx_fifo_wr) {
+        usb_ep_2_out_respond_write(EPF_ACK);
+        return 0;
+    }
+    return terminal_is_connected;
 }
 
 __attribute__((section(".ramtext")))

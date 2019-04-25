@@ -26,9 +26,9 @@ void usb_poll(void);
 int usb_wait_for_send_done(void);
 void usb_recv_done(void);
 
-void usb_putc(uint8_t c);
+void usb_putc(char c);
 int usb_getc(void);
-int usb_write(const uint8_t *buf, int count);
+int usb_write(const char *buf, int count);
 int usb_can_getc(void);
 int usb_can_putc(void);
 

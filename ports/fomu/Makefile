@@ -33,6 +33,7 @@ CFLAGS := $(INC) \
 			-ggdb -g \
 			-fno-common \
 			-fomit-frame-pointer \
+			-flto \
 			-fdata-sections -ffunction-sections \
 			-march=rv32i \
 			-DGIT_VERSION=u\"$(GIT_VERSION)\" -std=gnu11 \
@@ -58,13 +59,13 @@ LIBS =
 SRC_C = \
 	src/main.c \
 	src/time.c \
-	src/uart_core.c \
+	src/uart-core.c \
 	src/usb-epfifo.c \
 	src/usb-dev.c \
 	src/usb-desc.c \
 	src/rgb.c \
+	src/stdout-helpers.c \
 	lib/utils/printf.c \
-	lib/utils/stdout_helpers.c \
 	lib/utils/pyexec.c \
 	lib/libc/string0.c \
 	lib/mp-readline/readline.c \

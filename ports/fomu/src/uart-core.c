@@ -6,11 +6,6 @@
  * Core UART functions to implement for a port
  */
 
-int usb_getc(void);
-void usb_putc(uint8_t c);
-int usb_can_getc(void);
-int usb_can_putc(void);
-
 // Receive single character
 int mp_hal_stdin_rx_chr(void) {
     do {

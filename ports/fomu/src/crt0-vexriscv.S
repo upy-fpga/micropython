@@ -54,13 +54,12 @@ trap_entry:
 .text
 
 crt_init:
-  # Flush the caches
-  .word 0x0f400000
-  # .word 0x400f
-  nop
-  nop
-  nop
-  la sp, _estack - 8
+  # # Flush the caches
+  # .word 16399
+  # .word 19
+  # .word 19
+  # .word 19
+  la sp, _estack - 4
   la a0, trap_entry
   csrw mtvec, a0
 
