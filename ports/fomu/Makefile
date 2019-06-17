@@ -57,26 +57,32 @@ endif
 LIBS =
 
 SRC_C = \
+	lib/libc/string0.c \
+	lib/mp-readline/readline.c \
+	lib/utils/printf.c \
+	lib/utils/pyexec.c \
 	src/main.c \
+	src/py.c \
+	src/rgb.c \
+	src/rgb-py.c \
+	src/stdout-helpers.c \
 	src/time.c \
 	src/uart-core.c \
 	src/usb-epfifo.c \
 	src/usb-dev.c \
 	src/usb-desc.c \
-	src/rgb.c \
-	src/stdout-helpers.c \
-	lib/utils/printf.c \
-	lib/utils/pyexec.c \
-	lib/libc/string0.c \
-	lib/mp-readline/readline.c \
+
+SRC_C_PY = \
 	$(BUILD)/_frozen_mpy.c \
 
 SRC_S = \
 	src/crt0-vexriscv.S \
 
+SRC_QSTR += $(SRC_C)
+
 VPATH += src include
 
-OBJ = $(PY_CORE_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o) $(SRC_S:.S=.o))
+OBJ = $(PY_CORE_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o) $(SRC_S:.S=.o) $(SRC_C_PY:.c=.o))
 
 ifeq ($(CROSS), 1)
 all: $(BUILD)/firmware.dfu

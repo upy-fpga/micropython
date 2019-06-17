@@ -36,9 +36,14 @@ static enum {
     DONE,
 } rgb_mode;
 
-static void rgb_write(uint8_t value, uint8_t addr) {
+void rgb_write(uint8_t value, uint8_t addr) {
     rgb_addr_write(addr);
     rgb_dat_write(value);
+}
+
+uint8_t rgb_read(uint8_t addr) {
+    rgb_addr_write(addr);
+    return rgb_dat_read();
 }
 
 void rgb_init(void) {
