@@ -2,22 +2,27 @@
 #include "py/mphal.h"
 #include "rgb.h"
 
+#include <strings.h>
+
 typedef struct _rgb_obj_t
 {
     mp_obj_base_t base;
 } rgb_obj_t;
 
-extern const mp_obj_type_t machine_rgb_obj;
+extern const mp_obj_type_t fomu_rgb_obj;
 
 STATIC const rgb_obj_t rgb_obj = {
-    {{&machine_rgb_obj}},
+    {{&fomu_rgb_obj}},
 };
 
 STATIC mp_obj_t rgb_make_new(const mp_obj_type_t *type,
                              size_t n_args, size_t n_kw,
                              const mp_obj_t *args)
 {
-
+    (void)type;
+    (void)n_args;
+    (void)n_kw;
+    (void)args;
     // mp_arg_check_num(n_args, n_kw, 1, 1, true);
     const rgb_obj_t *self = &rgb_obj;
     // if (!self)
@@ -32,7 +37,7 @@ STATIC mp_obj_t rgb_make_new(const mp_obj_type_t *type,
 
 STATIC mp_obj_t rgb_mode(mp_obj_t self_in, mp_obj_t mode_name)
 {
-    rgb_obj_t *self = self_in;
+    (void)self_in;
     const char *mode_str = mp_obj_str_get_str(mode_name);
     if (!strcasecmp(mode_str, "idle")) {
         rgb_mode_idle();
@@ -62,7 +67,7 @@ MP_DEFINE_CONST_FUN_OBJ_2(rgb_mode_obj, rgb_mode);
 
 STATIC mp_obj_t rgb_write_raw(mp_obj_t self_in, mp_obj_t addr_obj, mp_obj_t val_obj)
 {
-    rgb_obj_t *self = self_in;
+    (void)self_in;
     uint32_t addr = mp_obj_get_int(addr_obj);
     uint32_t value = mp_obj_get_int(val_obj);
     rgb_write(value, addr);
@@ -70,9 +75,9 @@ STATIC mp_obj_t rgb_write_raw(mp_obj_t self_in, mp_obj_t addr_obj, mp_obj_t val_
 }
 MP_DEFINE_CONST_FUN_OBJ_3(rgb_write_raw_obj, rgb_write_raw);
 
-STATIC mp_obj_t rgb_read_raw(mp_obj_t self_in, mp_obj_t addr_obj, mp_obj_t val_obj)
+STATIC mp_obj_t rgb_read_raw(mp_obj_t self_in, mp_obj_t addr_obj)
 {
-    rgb_obj_t *self = self_in;
+    (void)self_in;
     uint32_t addr = mp_obj_get_int(addr_obj);
     uint32_t value = rgb_read(addr);
     return mp_obj_new_int(value);
@@ -88,7 +93,7 @@ STATIC const mp_rom_map_elem_t rgb_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rgb_locals_dict, rgb_locals_dict_table);
 
-const mp_obj_type_t machine_rgb_obj = {
+const mp_obj_type_t fomu_rgb_obj = {
     {&mp_type_type},
     .name = MP_QSTR_rgb,
     .make_new = rgb_make_new,

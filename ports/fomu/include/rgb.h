@@ -9,5 +9,6 @@ void rgb_mode_done(void);
 void rgb_mode_writing(void);
 void rgb_mode_error(void);
 void rgb_write(uint8_t value, uint8_t addr);
+uint8_t rgb_read(uint8_t addr);
 
 #endif /* _RGB_H_ */
