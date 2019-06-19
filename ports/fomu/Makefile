@@ -12,7 +12,7 @@ include $(TOP)/py/py.mk
 LDSCRIPT := ld/fomu-spi.ld
 
 # There is no 64-bit gcc on Raspberry Pi, so use the 32-bit version
-ifneq (,$(wildcard /etc/rpi-issue))
+ifneq (,$(wildcard /usr/bin/riscv32-unknown-elf-gcc))
 TRGT       ?= riscv32-unknown-elf-
 else
 TRGT       ?= riscv64-unknown-elf-
