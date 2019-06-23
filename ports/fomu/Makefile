@@ -62,6 +62,7 @@ SRC_C = \
 	lib/utils/printf.c \
 	lib/utils/pyexec.c \
 	src/main.c \
+	src/modmachine.c \
 	src/py.c \
 	src/rgb.c \
 	src/rgb-py.c \
@@ -84,7 +85,7 @@ SRC_QSTR += $(SRC_C)
 
 VPATH += src include
 
-OBJ = $(PY_CORE_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o) $(SRC_S:.S=.o) $(SRC_C_PY:.c=.o))
+OBJ = $(PY_CORE_O) $(PY_EXTMOD_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o) $(SRC_S:.S=.o) $(SRC_C_PY:.c=.o))
 
 ifeq ($(CROSS), 1)
 all: $(BUILD)/firmware.dfu

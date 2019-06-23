@@ -100,4 +100,6 @@ const machine_mem_obj_t machine_mem8_obj = {{&machine_mem_type}, 1};
 const machine_mem_obj_t machine_mem16_obj = {{&machine_mem_type}, 2};
 const machine_mem_obj_t machine_mem32_obj = {{&machine_mem_type}, 4};
 
+#else
+#error "Undefined"
 #endif // MICROPY_PY_MACHINE
