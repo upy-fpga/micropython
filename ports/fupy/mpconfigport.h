@@ -85,7 +85,20 @@ extern const struct _mp_obj_module_t mp_module_litex;
 #include <alloca.h>
 
 #define MICROPY_HW_BOARD_NAME "litex"
+
+#ifdef __lm32__
 #define MICROPY_HW_MCU_NAME "lm32"
+#elif __or1k__
+#define MICROPY_HW_MCU_NAME "or1k"
+#elif __minerva__
+#define MICROPY_HW_MCU_NAME "riscv32"
+#elif __picorv32__
+#define MICROPY_HW_MCU_NAME "riscv32"
+#elif __vexriscv__
+#define MICROPY_HW_MCU_NAME "riscv32"
+#else
+#error "Unknown MCU type?."
+#endif
 
 #ifdef __linux__
 #define MICROPY_MIN_USE_STDOUT (1)
